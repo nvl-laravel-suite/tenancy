@@ -1,0 +1,4 @@
+interface:
+  display_name: "NVL Tenancy"
+  short_description: "Build fail-closed Laravel tenancy boundaries"
+  default_prompt: "Use $nvl-tenancy to implement or review tenant context, deployment configuration, admission, isolation, adoption, lifecycle, and worker boundaries."

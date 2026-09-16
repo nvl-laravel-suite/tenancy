@@ -1,0 +1,15 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    excludePaths:
+        analyseAndScan:
+            - .temp/*
+
+    paths:
+        - src
+        - tests/Fixtures
+
+    level: max
+
+    tmpDir: .temp/phpstan
