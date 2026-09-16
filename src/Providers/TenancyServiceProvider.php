@@ -29,8 +29,11 @@ use Nvl\Tenancy\Services\PackageTenantDirectory;
 use Nvl\Tenancy\Services\ScopedTenantContext;
 use Nvl\Tenancy\Services\TenancyConfiguration;
 use Nvl\Tenancy\Services\TenantContextParticipants;
+use Nvl\Tenancy\Services\TenantInstallationState;
 use Nvl\Tenancy\Services\TenantMaintenanceLease;
 use Nvl\Tenancy\Services\TenantMaintenanceQueueGuard;
+use Nvl\Tenancy\Services\TenantOwnershipConfiguration;
+use Nvl\Tenancy\Services\TenantResourceRegistry;
 use Nvl\Tenancy\ValueObjects\TenantSiteContext;
 
 /**
@@ -47,6 +50,7 @@ final class TenancyServiceProvider extends ServiceProvider
     {
         $configuration = $this->app->make(TenancyConfiguration::class);
         $configuration->validate();
+        $this->app->booted(fn () => $this->app->make(TenantOwnershipConfiguration::class)->validate());
         $this->registerConfiguredAdapters();
         $this->registerMigrations();
         $this->callAfterResolving(Kernel::class, static function (Kernel $kernel): void {
@@ -70,6 +74,8 @@ final class TenancyServiceProvider extends ServiceProvider
     {
         $this->mergePackageConfiguration(__DIR__.'/../../config/tenancy.php', 'tenancy');
         $this->app->singleton(TenancyConfiguration::class);
+        $this->app->singleton(TenantResourceRegistry::class);
+        $this->app->scoped(TenantInstallationState::class);
         $this->app->scopedIf(ScopedTenantContext::class);
         $this->app->scopedIf(TenantContext::class, static fn (Container $app): ScopedTenantContext => $app->make(ScopedTenantContext::class));
         $this->app->scopedIf(TenantMaintenanceLease::class);

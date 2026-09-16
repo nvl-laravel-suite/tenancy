@@ -150,9 +150,9 @@ final readonly class TenancyConfiguration
     }
 
     /**
-     * Reject resource-family overrides until packages register integration metadata.
+     * Validate resource override structure before package registration completes.
      *
-     * @throws TenantConfigurationInvalid When an unregistered family is configured
+     * @throws TenantConfigurationInvalid When a family key or ownership mode is invalid
      */
     private function validateResources(mixed $resources): void
     {
@@ -165,7 +165,9 @@ final readonly class TenancyConfiguration
                 throw new TenantConfigurationInvalid('Tenancy resource family names must be strings.');
             }
 
-            throw new TenantConfigurationInvalid("Unknown tenancy resource family [{$family}].");
+            if (! in_array($mode, ['tenant', 'platform'], true)) {
+                throw new TenantConfigurationInvalid("Unsupported tenancy resource mode for [{$family}].");
+            }
         }
     }
 

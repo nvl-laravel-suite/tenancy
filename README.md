@@ -20,8 +20,9 @@ packages on Laravel 13 and PHP 8.4.
 
 The package is inert by default. Its provider registers a scoped disabled
 context, the default migration switch loads no schema, no global middleware is
-attached, and package queries remain unchanged while `tenancy.enabled` is
-`false`. Queue guards are registered without capturing an application or tenant
+attached, and unadopted package queries remain unchanged while `tenancy.enabled` is
+`false`. An adopted resource always checks its persisted marker, including when
+the feature is disabled. Queue guards are registered without capturing an application or tenant
 and act only during a recovery lease.
 
 ## Requirements and installation
@@ -43,9 +44,14 @@ strategy and keeps activation and optional migrations disabled. Configuration
 contains deployment-level scalars, literal arrays, and adapter class strings;
 closures and current tenant or actor values are rejected.
 
-The `application` profile currently has no integrated resource families.
-Resource overrides therefore fail until later package integration registers the
-family. Sharing supports only `none` and `copy` for Media, Metafields, and
+The `application` profile defaults registered mutable resource families to
+`tenant`. Registered families may explicitly choose `tenant` or `platform` when
+their code-owned capabilities support that mode. Unknown families, contradictory
+parent modes, and incompatible declared family dependencies fail after provider
+registration completes. Family overrides apply to mutable roots; fixed platform
+vocabulary in the same family stays platform-owned and does not create a mutable
+ownership conflict. A family consisting only of fixed platform definitions cannot
+be reclassified as tenant-owned. Sharing supports only `none` and `copy` for Media, Metafields, and
 Templates, and does not create a shared mutable resource mode.
 
 Host adapters may implement `TenantDirectory`, `TenantMembershipAccess`,
@@ -131,6 +137,75 @@ resolving it requires agreement with the active tenant. Unknown, suspended and
 deleted public tenants receive the same not-found response. Browser `Origin`
 and `Referer` values do not establish this mapping.
 
+## Registered resource ownership
+
+Packages register immutable `TenantResourceDefinition` values through
+`TenantResourceRegistry::register()`. A key identifies one concrete model and
+code-owned root, inherited, or fixed-platform policy. Identical registrations
+are idempotent; conflicting keys/models and declared parent cycles fail.
+
+`TenantBoundary::query()` verifies installation state and wraps existing caller
+conditions before adding qualified ownership predicates. Tenant mode selects the
+current tenant; platform mode selects only nullable platform partitions with
+`ownership_key=platform`. Mixed tenant rows require `ownership_key=tenant`.
+Tenant-only roots deny platform access. Fixed platform vocabulary requires its
+own package reader. Queries must use the registered canonical table; aliased
+root tables and unions are rejected because a single predicate cannot safely
+cover them. Soft-delete and other Eloquent scopes remain in effect.
+
+`assertRecord()` fetches only persisted ownership facts using the registered
+model's validated connection. Dirty tenant IDs, keys, foreign keys, and retained
+relations cannot supply ownership evidence. Inherited predicates and record checks
+follow the canonical parent and reject unknown owners, cycles, or incompatible
+connections. This check does not lock business content: package writers must
+reload and lock records under the tenant predicate before mutation, and validate
+again immediately before external side effects.
+
+`attributes()` generates root ownership fields; children derive fields from their
+canonical parent. `key()` returns the legacy identity only for disabled,
+unadopted resources. Otherwise it hashes the JSON tuple of effective connection,
+resource key, context mode, tenant ID, and caller identity under `nvl:tenant:`.
+Every enabled boundary operation rechecks current directory status. Only the
+exact synchronous maintenance lease admits suspended/deleted tenants.
+
+### Internal integration and adoption seams
+
+These are package infrastructure, not consumer bypass APIs:
+
+- `TenantResourceRegistry::requireCompatible(family, dependency)` declares a
+  family dependency whose mutable ownership modes must match; fixed vocabulary
+  is excluded from mode-split checks. Core imports no domain
+  package to infer these edges.
+- `registerParentResolver(resource, resolverClass)` registers a class implementing
+  `TenantParentResolver::types(): array<string, class-string<Model>>`. Its map
+  comes from the owning package's allowlist and maps persisted morph aliases to
+  concrete models. It must be deterministic and free of tenant/request state.
+  Every allowed model also needs a canonical resource registration. Missing,
+  unknown, or disallowed types deny access before persisted morph types can
+  instantiate classes. Merely registering a model globally never allowlists it.
+- `TenantOwnershipConfiguration::fingerprint(resource)` is SHA-256 over canonical
+  JSON format version 1: strategy/profile, effective core connection, configured
+  directory driver/adapter and effective adapter class, then the sorted resource
+  ownership closure. Each definition includes family/model/kind, parent/relation,
+  catalog/mixed flags, effective mode, table/connection, fixed ownership columns,
+  parent resolver/type map, and sorted declared family dependencies. Parent and
+  dependency definitions are recursively included. Unrelated resources are not.
+  `hash(list<string> resources)` hashes the sorted selected resource-to-fingerprint
+  map for an adoption run. Markers store the individual fingerprint. Neither hash
+  includes feature/migration flags, current scope/status/actor, access/resolver
+  configuration, or sharing policy.
+- `TenantInstallationState::assertUsable(resource)` probes the resource's actual
+  storage connection, never a newly configured empty core store. It performs one
+  schema probe and, when present, one marker-set read per connection object per
+  scoped worker generation. Database errors propagate. Enabled missing, prepared,
+  incompatible, or disabled-but-adopted resources fail closed. `invalidate()` is
+  for the authorized adoption coordinator after schema changes; other processes
+  must be drained/restarted. Tenant status is never cached with these markers.
+
+F4 tests alone seed real adoption-run and marker rows to verify this guard before
+the coordinator exists. Downstream integrations must use the actual coordinator
+and their package adoption adapters.
+
 ## Synchronous tenant recovery
 
 `TenantMaintenanceRunner::run(TenantId, PlatformOperation, Closure)` admits one
@@ -164,7 +239,7 @@ predicates, writes, adoption adapter, diagnostics, and acceptance tests.
 ## Security
 
 Tenant IDs are canonical UUIDs. A missing tenant scope fails closed through a
-typed exception. Schema adoption, resource predicates, and normal queue context
+typed exception. The adoption coordinator and normal queue context
 propagation/restoration remain future foundation work and must not be inferred
 from provider registration or the synchronous recovery guard.
 

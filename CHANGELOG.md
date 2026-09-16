@@ -21,3 +21,8 @@ All notable changes to `nvl/tenancy` are documented here.
   provisioning and lifecycle actions, configured-connection persistence, and
   durable privileged-operation audit coverage without activating downstream
   package tenancy.
+- Added immutable resource registration, canonical persisted ownership checks,
+  grouped query predicates, package-allowlisted polymorphic parents, isolated
+  identity keys, and current-status resource admission.
+- Added per-resource ownership fingerprints and bounded persisted adoption probes
+  that reject prepared/incompatible resources and configuration downgrade attempts.

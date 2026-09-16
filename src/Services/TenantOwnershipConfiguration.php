@@ -1,0 +1,212 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Nvl\Tenancy\Services;
+
+use Illuminate\Container\Container;
+use Illuminate\Contracts\Config\Repository;
+use Illuminate\Database\Eloquent\Model;
+use Nvl\Tenancy\Contracts\TenantDirectory;
+use Nvl\Tenancy\Contracts\TenantParentResolver;
+use Nvl\Tenancy\Enums\TenantResourceKind;
+use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Tenancy\ValueObjects\TenantResourceDefinition;
+
+/**
+ * Derives structural ownership modes and deterministic per-resource adoption fingerprints.
+ *
+ * @internal
+ */
+final readonly class TenantOwnershipConfiguration
+{
+    /** Create a registry-aware ownership validator without retaining request state. */
+    public function __construct(private Repository $configuration, private TenantResourceRegistry $registry, private EffectiveTenantConnection $connections, private Container $container) {}
+
+    /** Validate complete package registrations after all provider boot methods have run. */
+    public function validate(): void
+    {
+        $families = [];
+        foreach ($this->registry->all() as $resource) {
+            $families[$resource->family][] = $resource;
+            $this->mode($resource);
+            if ($resource->kind === TenantResourceKind::Inherited && $resource->parentResource === null) {
+                $override = $this->configuration->get('tenancy.resources.'.$resource->family);
+                foreach ($this->parentTypes($resource->key) as $parentClass) {
+                    $parent = $this->registry->forModel(new $parentClass);
+                    if ($override !== null && $override !== $this->mode($parent)) {
+                        throw new TenantConfigurationInvalid('Inherited resources cannot override their parent ownership mode.');
+                    }
+                }
+            }
+        }
+        $overrides = $this->configuration->get('tenancy.resources', []);
+        if (! is_array($overrides)) {
+            throw new TenantConfigurationInvalid('tenancy.resources must be an array.');
+        }
+        foreach ($overrides as $family => $mode) {
+            if (! is_string($family) || ! isset($families[$family])) {
+                throw new TenantConfigurationInvalid("Unknown tenancy resource family [{$family}].");
+            }
+            if (! in_array($mode, ['tenant', 'platform'], true)) {
+                throw new TenantConfigurationInvalid('Resource ownership modes must be tenant or platform.');
+            }
+            $mutable = array_filter($families[$family], static fn (TenantResourceDefinition $resource): bool => $resource->kind !== TenantResourceKind::Platform);
+            if ($mutable === [] && $mode !== 'platform') {
+                throw new TenantConfigurationInvalid('A fixed platform family cannot be reclassified.');
+            }
+            foreach ($mutable as $resource) {
+                if ($resource->kind === TenantResourceKind::Root && $mode === 'platform' && ! $resource->allowsPlatformCatalog && ! $resource->allowsPlatformRows) {
+                    throw new TenantConfigurationInvalid('The family does not support the requested ownership mode.');
+                }
+            }
+        }
+        foreach ($this->registry->dependencies() as $family => $dependencies) {
+            foreach ($dependencies as $dependency) {
+                if (! isset($families[$family], $families[$dependency])) {
+                    throw new TenantConfigurationInvalid('An ownership dependency names an unregistered family.');
+                }
+                foreach ($families[$family] as $resource) {
+                    foreach ($families[$dependency] as $required) {
+                        if ($resource->kind === TenantResourceKind::Platform || $required->kind === TenantResourceKind::Platform) {
+                            continue;
+                        }
+                        if ($this->mode($resource) !== $this->mode($required)) {
+                            throw new TenantConfigurationInvalid('Dependent families must have compatible ownership modes.');
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Return effective ownership, inheriting canonical parents and rejecting contradictory overrides. */
+    public function mode(TenantResourceDefinition $resource): string
+    {
+        $override = $this->configuration->get('tenancy.resources.'.$resource->family);
+        if ($override !== null && ! in_array($override, ['tenant', 'platform'], true)) {
+            throw new TenantConfigurationInvalid('Resource ownership modes must be tenant or platform.');
+        }
+        if ($resource->kind === TenantResourceKind::Platform) {
+            return 'platform';
+        }
+        if ($resource->parentResource !== null) {
+            $mode = $this->mode($this->registry->get($resource->parentResource));
+            if ($override !== null && $override !== $mode) {
+                throw new TenantConfigurationInvalid('Inherited resources cannot override their parent ownership mode.');
+            }
+
+            return $mode;
+        }
+
+        return $override ?? 'tenant';
+    }
+
+    /**
+     * Resolve validated package allowlists before any persisted morph class can be instantiated.
+     *
+     * @return array<string, class-string<Model>>
+     */
+    public function parentTypes(string $resource): array
+    {
+        $resolver = $this->registry->parentResolver($resource);
+        $adapter = $this->container->make($resolver);
+        if (! $adapter instanceof TenantParentResolver) {
+            throw new TenantConfigurationInvalid('The parent resolver binding must implement TenantParentResolver.');
+        }
+
+        return $this->validateTypes($adapter->types());
+    }
+
+    /** Fingerprint one resource and its ownership dependency closure independently of unrelated packages. */
+    public function fingerprint(string $resource): string
+    {
+        $this->validate();
+        $definitions = [];
+        $this->collect($this->registry->get($resource), $definitions);
+        ksort($definitions);
+
+        return hash('sha256', json_encode([
+            'version' => 1,
+            'strategy' => $this->configuration->get('tenancy.strategy'),
+            'profile' => $this->configuration->get('tenancy.profile'),
+            'connection' => $this->connections->core()->getName(),
+            'directory' => [
+                'driver' => $this->configuration->get('tenancy.directory.driver'),
+                'adapter' => $this->configuration->get('tenancy.directory.adapter'),
+                'effective_adapter' => $this->container->make(TenantDirectory::class)::class,
+            ],
+            'resources' => $definitions,
+        ], JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Hash the sorted selected resource-to-fingerprint map for an adoption run.
+     *
+     * @param  list<string>  $resources
+     */
+    public function hash(array $resources): string
+    {
+        $fingerprints = [];
+        foreach ($resources as $resource) {
+            $fingerprints[$resource] = $this->fingerprint($resource);
+        }
+        ksort($fingerprints);
+
+        return hash('sha256', json_encode($fingerprints, JSON_THROW_ON_ERROR));
+    }
+
+    /** Validate actual adapter output before constructing parent models.
+     * @param  array<mixed>  $types
+     * @return array<string, class-string<Model>>
+     */
+    private function validateTypes(array $types): array
+    {
+        foreach ($types as $type => $model) {
+            if (! is_string($type) || $type === '' || ! is_string($model) || ! is_a($model, Model::class, true)) {
+                throw new TenantConfigurationInvalid('Canonical parent allowlists require persisted types and concrete models.');
+            }
+            $this->registry->forModel(new $model);
+        }
+        ksort($types);
+
+        return $types;
+    }
+
+    /**
+     * Collect immutable structural ownership facts, terminating dependency cycles.
+     *
+     * @param  array<string, array<string, mixed>>  $definitions
+     */
+    private function collect(TenantResourceDefinition $resource, array &$definitions): void
+    {
+        if (isset($definitions[$resource->key])) {
+            return;
+        }
+        $model = new $resource->model;
+        $types = $resource->kind === TenantResourceKind::Inherited && $resource->parentResource === null ? $this->parentTypes($resource->key) : [];
+        $dependencies = $this->registry->dependencies()[$resource->family] ?? [];
+        sort($dependencies);
+        $definitions[$resource->key] = [
+            'family' => $resource->family, 'model' => $resource->model, 'kind' => $resource->kind->value,
+            'parent' => $resource->parentResource, 'relation' => $resource->parentRelation,
+            'catalog' => $resource->allowsPlatformCatalog, 'platform_rows' => $resource->allowsPlatformRows,
+            'mode' => $this->mode($resource), 'table' => $model->getTable(),
+            'connection' => $this->connections->name($model->getConnectionName()),
+            'columns' => ['tenant_id', ...($resource->allowsPlatformCatalog || $resource->allowsPlatformRows ? ['ownership_key'] : [])],
+            'parent_resolver' => $types === [] ? null : $this->registry->parentResolver($resource->key),
+            'parent_types' => $types, 'dependencies' => $dependencies,
+        ];
+        if ($resource->parentResource !== null) {
+            $this->collect($this->registry->get($resource->parentResource), $definitions);
+        }
+        foreach ($types as $parentModel) {
+            $this->collect($this->registry->forModel(new $parentModel), $definitions);
+        }
+        foreach ($this->registry->all() as $dependency) {
+            if (in_array($dependency->family, $dependencies, true)) {
+                $this->collect($dependency, $definitions);
+            }
+        }
+    }
+}

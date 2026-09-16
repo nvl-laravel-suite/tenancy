@@ -11,3 +11,10 @@ credentials, tenant data, SQL, tokens, or unredacted configuration secrets.
 Provider registration is not tenant isolation. Keep the feature disabled until
 the complete schema, context runner, resource boundaries, adoption, and worker
 restoration milestones are installed and verified.
+
+Registered boundaries validate canonical persisted ownership and current status.
+Callers must reload and lock business records under the predicate before mutation;
+loaded relationships and dirty attributes are not authorization evidence. Existing
+adoption markers remain mandatory when a feature is disabled or the configured
+core store changes. Marker cache invalidation is internal adoption infrastructure,
+and all other worker processes must restart at cutover.

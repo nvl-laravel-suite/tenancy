@@ -16,6 +16,7 @@ use Nvl\Tenancy\Exceptions\TenantSchemaNotReady;
 use Nvl\Tenancy\Providers\TenancyServiceProvider;
 use Nvl\Tenancy\Services\ScopedTenantContext;
 use Nvl\Tenancy\Services\TenancyConfiguration;
+use Nvl\Tenancy\Services\TenantOwnershipConfiguration;
 use Nvl\Tenancy\Tests\Fixtures\AbstractTestTenantDirectory;
 use Nvl\Tenancy\Tests\Fixtures\ConflictingTestTenantDirectory;
 use Nvl\Tenancy\Tests\Fixtures\TestTenantDirectory;
@@ -84,8 +85,10 @@ it('ships the frozen inert configuration defaults', function (): void {
 it('rejects invalid deployment configuration', function (string $path, mixed $value, string $message): void {
     config()->set($path, $value);
 
-    expect(fn (): null => app(TenancyConfiguration::class)->validate())
-        ->toThrow(TenantConfigurationInvalid::class, $message);
+    expect(function (): void {
+        app(TenancyConfiguration::class)->validate();
+        app(TenantOwnershipConfiguration::class)->validate();
+    })->toThrow(TenantConfigurationInvalid::class, $message);
 })->with([
     'non-boolean enablement' => ['tenancy.enabled', 'false', 'tenancy.enabled must be a boolean.'],
     'unknown strategy' => ['tenancy.strategy', 'database-per-tenant', 'Unsupported tenancy strategy [database-per-tenant].'],

@@ -30,6 +30,24 @@ writes, grants, adoption adapter, and lifecycle.
 - Never infer tenant ownership from request data or assign legacy rows to a
   default tenant.
 
+## Resource integrations
+
+- Register concrete models and code-owned parent policies before boot completion.
+  Declare ownership dependencies with the internal `requireCompatible` seam.
+- Use `TenantBoundary` for queries, records, generated root fields and identity
+  keys. Reload and lock under the predicate before writes; recheck status before
+  external effects. Never authorize through dirty fields or loaded relations.
+- Map persisted polymorphic types through the package allowlist using the internal
+  `TenantParentResolver` adapter before registry lookup or class construction.
+- Store `TenantOwnershipConfiguration::fingerprint(resource)` in each marker and
+  `hash(selectedResources)` in the adoption run. Keep unrelated resources out of
+  each fingerprint. See README's internal integration and adoption seams.
+- Preserve lazy marker checks on the resource's actual connection even when
+  disabled. Propagate database failures. Only the adoption coordinator invalidates
+  local probes; cutover also requires worker restart. Do not cache tenant status.
+- Manual run/marker fixtures are confined to F4 guard tests. Later integrations
+  use their real adoption adapters through the coordinator.
+
 ## Verify
 
 Run focused package tests serially, then Pint, package PHPStan, package-family
