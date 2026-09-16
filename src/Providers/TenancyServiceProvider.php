@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Providers;
 
+use Illuminate\Bus\DatabaseBatchRepository;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Contracts\Queue\Factory as QueueFactory;
 use Illuminate\Http\Request;
+use Illuminate\Queue\CallQueuedHandler;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Defer\DeferredCallbackCollection;
 use Illuminate\Support\ServiceProvider;
@@ -25,6 +27,8 @@ use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
 use Nvl\Tenancy\Exceptions\TenantContextMissing;
 use Nvl\Tenancy\Http\Middleware\RequireTenantMembership;
 use Nvl\Tenancy\Http\Middleware\ResolvePublicTenant;
+use Nvl\Tenancy\Queue\TenantCallQueuedHandler;
+use Nvl\Tenancy\Queue\TenantDatabaseBatchRepository;
 use Nvl\Tenancy\Services\DenyPlatformAccess;
 use Nvl\Tenancy\Services\DenyTenantMembershipAccess;
 use Nvl\Tenancy\Services\PackageTenantDirectory;
@@ -33,6 +37,7 @@ use Nvl\Tenancy\Services\TenancyConfiguration;
 use Nvl\Tenancy\Services\TenantAdoptionRegistry;
 use Nvl\Tenancy\Services\TenantAdoptionScope;
 use Nvl\Tenancy\Services\TenantContextParticipants;
+use Nvl\Tenancy\Services\TenantGlobalJobRegistry;
 use Nvl\Tenancy\Services\TenantInstallationState;
 use Nvl\Tenancy\Services\TenantMaintenanceLease;
 use Nvl\Tenancy\Services\TenantMaintenanceQueueGuard;
@@ -105,6 +110,13 @@ final class TenancyServiceProvider extends ServiceProvider
                 Container::getInstance()->make(TenantAdoptionScope::class)->assertQueueAllowed();
             });
         }
+        $this->app->singleton(TenantGlobalJobRegistry::class);
+        $this->app->bindIf(CallQueuedHandler::class, TenantCallQueuedHandler::class);
+        $this->app->extend(DatabaseBatchRepository::class, static function ($repository) {
+            return is_object($repository) && $repository::class === DatabaseBatchRepository::class
+                ? TenantDatabaseBatchRepository::fromNative($repository)
+                : $repository;
+        });
         TenantMaintenanceQueueGuard::register();
     }
 

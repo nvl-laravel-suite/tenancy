@@ -4,6 +4,8 @@ All notable changes to `nvl/tenancy` are documented here.
 
 ## [Unreleased]
 
+- Restore explicitly captured queued tenant context before command/failure deserialization, validate native representations and canonical model ownership, and unwind worker state.
+
 ### Added
 
 - Separate runtime provider compatibility from feature enablement and persisted

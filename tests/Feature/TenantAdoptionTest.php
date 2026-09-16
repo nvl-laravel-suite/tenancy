@@ -33,6 +33,7 @@ use Nvl\Tenancy\Services\TenantAdoptionMappings;
 use Nvl\Tenancy\Services\TenantAdoptionRegistry;
 use Nvl\Tenancy\Services\TenantAdoptionScope;
 use Nvl\Tenancy\Services\TenantBoundary;
+use Nvl\Tenancy\Services\TenantGlobalJobRegistry;
 use Nvl\Tenancy\Services\TenantInstallationState;
 use Nvl\Tenancy\Services\TenantMaintenanceLease;
 use Nvl\Tenancy\Services\TenantResourceRegistry;
@@ -54,6 +55,7 @@ use Symfony\Component\Process\Process as ProcessWorker;
 use function Illuminate\Support\defer;
 
 beforeEach(function (): void {
+    app(TenantGlobalJobRegistry::class)->register(MaintenanceProbeJob::class);
     Schema::create('tenancy_test_records', function (Blueprint $table): void {
         $table->uuid('id')->primary();
         $table->string('name');

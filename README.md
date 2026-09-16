@@ -435,3 +435,112 @@ audit, and queue boundaries. See [UPGRADING.md](UPGRADING.md), [SECURITY.md](SEC
 ## License
 
 Released under the [MIT License](LICENSE).
+
+## Queued tenant work
+
+Implement `Nvl\Tenancy\Contracts\TenantQueuedJob` on each tenant command and capture
+its immutable `TenantJobEnvelope` when constructing it inside `TenantRunner::run()`:
+
+```php
+final class RebuildTenantIndex implements ShouldQueue, TenantQueuedJob
+{
+    use Queueable;
+
+    public function __construct(
+        public readonly TenantJobEnvelope $envelope,
+        public readonly string $recordId,
+    ) {}
+
+    public function tenantJobEnvelope(): TenantJobEnvelope
+    {
+        return $this->envelope;
+    }
+}
+
+$job = new RebuildTenantIndex(TenantJobEnvelope::capture(app(TenantContext::class)), $recordId);
+Bus::dispatch($job);
+```
+
+Use the normal imports for Laravel's `ShouldQueue`, `Queueable`, and `Bus` and the
+Tenancy contracts/value objects shown above. Package commands carry scalar IDs;
+inside `handle()` use the owning package boundary to load and verify the work item.
+The persisted owner must still match the envelope on every attempt.
+
+Capture must precede `PendingDispatch`, unique-lock acquisition, `afterResponse`,
+and sync `afterCommit` scheduling. Enabled tenancy rejects uncaptured commands even
+if a tenant happens to be active when Laravel finally serializes them. The native
+host bus dispatcher and its response-deferral setting are preserved. A job's
+`uniqueId()` and `WithoutOverlapping` key must include its **captured** tenant ID,
+not whichever ambient scope later publishes or consumes it. Tenant-aware resource
+keys can be captured through `TenantBoundary::key()` at construction.
+
+The versioned scalar `data.nvl_tenancy` envelope is validated before both native
+`CallQueuedHandler::call()` and `failed()` deserialize user commands. Unknown
+versions, invalid modes, missing metadata, inactive tenants, incompatible loaded
+providers, and worker feature-mode mismatches fail closed. Failure before `handle()`
+and retry use the same boundary. Maintenance/adoption grants cannot publish work.
+Disabled legacy object dispatch, including pre-installation payloads without metadata, remains available only against unadopted resources;
+an enabled worker never accepts a Disabled envelope.
+
+The provider uses `bindIf(CallQueuedHandler::class, TenantCallQueuedHandler::class)`.
+An existing host implementation must extend `TenantCallQueuedHandler` and preserve
+both entry points (call the parent implementations when overriding). Doctor reports
+incompatible handler bindings; publication also rejects them. Retained services
+resolve the current scoped context on every entry. String jobs and other custom
+handler routes require a separate explicit adapter. Queue payload hooks must merge
+nested `data`; overwriting the envelope causes worker rejection.
+
+Specific trusted global identity commands can register their exact class through
+`TenantGlobalJobRegistry::register()`. They run in Unresolved context and may carry
+only scalar properties and arrays. Framework wrappers and subclasses cannot be
+registered as global identity jobs. Both plaintext and native encrypted commands
+receive root-class and inert data checks before native deserialization. Neither a
+claimed `commandName` nor PHP's incomplete-class inspection metadata grants access.
+
+Supported host `SerializesModels` properties require registered canonical resource
+models, scalar identifiers, canonical connections, no serialized relationships, and
+no custom collection classes. Before native restoration, inert `ModelIdentifier`
+data is checked against persisted ownership. Missing, moved, foreign, unregistered,
+or unsupported identifiers fail closed before the command's `__unserialize()`;
+this deliberately does not apply native delete-when-missing behavior to a denied
+ownership check. Use scalar IDs and explicit package readers for richer graphs.
+The reserved `__PHP_Incomplete_Class_Name` inspection marker is rejected in command
+bytes, including scalar content. Serialized object graphs have a bounded depth.
+
+Chains must carry the same captured tenant on every command; their native nested
+serialized commands are checked before the initial command is deserialized.
+Fixed native wrapper adapters support `SendQueuedMailable` when its mailable
+implements `TenantQueuedJob`, `SendQueuedNotifications` when its notification does,
+and `CallQueuedListener` when its event arguments contain explicitly captured
+carriers with matching envelopes. Capture in the mailable/notification/event
+constructor before native dispatch. Prefer scalar or on-demand recipients; model
+recipients follow the same registered-identifier limits. Uncaptured wrappers,
+custom subclasses, mismatched event carriers, and legacy serialized-string listener
+arguments fail closed. Wrapper classes are never global identity registrations.
+
+### Native database batches
+
+Capture a pending batch while its producer tenant is active, then dispatch it in
+that same tenant scope:
+
+```php
+app(TenantQueueContext::class)
+    ->captureBatch(Bus::batch([$firstCapturedJob, $secondCapturedJob])->then($callback))
+    ->dispatch();
+```
+
+Every command and callback belongs to one captured tenant. Mixed jobs, later-added
+foreign jobs, missing capture, and changed persisted options are rejected. Native
+batch `afterResponse` publication in a later unrelated or Unresolved scope is
+unsupported and fails closed; individual captured job `afterResponse` is supported.
+
+`TenantDatabaseBatchRepository` retains Laravel's database batch algorithms and
+validates inert persisted options before native callback deserialization. The
+provider adapts the exact native database repository with its actual factory,
+connection, and table. Host subclasses/custom repositories are preserved and must
+explicitly inherit the guarded adapter; Doctor and batch capture reject incompatible
+implementations. PostgreSQL's native base64 representation is preserved. Batch reads
+must run in the captured tenant context. Native signed callback payloads receive
+recursive inert model checks while native signature verification remains in place.
+Arbitrary application `__unserialize()` implementations are trusted application code;
+this boundary does not sandbox code hidden inside custom serialized strings.

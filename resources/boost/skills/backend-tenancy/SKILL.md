@@ -103,3 +103,30 @@ Use the dedicated engine-aware schema/adoption case for PostgreSQL, MySQL 8.4 an
 MariaDB (actual mariadb driver) proof. Preserve intentional SQLite-only fixtures.
 Package-owned optional migrations and published consumer copies are exclusive:
 leave migrations.enabled false for the consumer-owned copy and never run both.
+
+## Queued execution and callbacks
+
+Tenant commands implement `TenantQueuedJob::tenantJobEnvelope()` and capture
+`TenantJobEnvelope::capture(TenantContext)` before PendingDispatch uniqueness,
+response deferral, or after-commit scheduling. Package jobs carry scalar IDs and
+recheck persisted ownership. Never adopt ambient context at payload creation.
+Build unique/overlap identities from the captured tenant.
+
+Use `TenantQueueContext::captureBatch(PendingBatch)` and dispatch in the captured
+producer scope. All jobs and callbacks in a batch share one tenant. Mixed batches,
+uncaptured IDs, incompatible repositories, and unrelated-scope batch response
+publication fail closed. Keep native signed callback checks and validate nested
+serialized closure captures before any callback/model restoration.
+
+Exact native mail, notification, and listener wrappers read capture from their
+mailable, notification, or event carriers. Prefer scalar/on-demand recipients;
+registered model identifiers have no serialized relations/custom collections.
+Generic wrappers never become global identity jobs. Global registrations name
+specific scalar-only application jobs and execute in Unresolved context.
+
+Keep both CallQueuedHandler entry boundaries and native database batch option
+validation. Preserve compatible host bindings; diagnose incompatible adapters.
+Missing old payload metadata is tolerated only with disabled tenancy and every
+participating resource unadopted. Present malformed metadata and enabled-worker
+Disabled envelopes always fail. Prove call, failed, native worker retries/exhaustion,
+wrapper restoration, signed callback captures, and retained-service cleanup.

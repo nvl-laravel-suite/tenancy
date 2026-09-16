@@ -27,6 +27,7 @@ use Nvl\Tenancy\Exceptions\TenantSchemaNotReady;
 use Nvl\Tenancy\Providers\TenancyServiceProvider;
 use Nvl\Tenancy\Services\DenyPlatformAccess;
 use Nvl\Tenancy\Services\TenantContextParticipants;
+use Nvl\Tenancy\Services\TenantGlobalJobRegistry;
 use Nvl\Tenancy\Services\TenantMaintenanceLease;
 use Nvl\Tenancy\Services\TenantMaintenanceQueueGuard;
 use Nvl\Tenancy\Services\TenantMaintenanceRunner;
@@ -51,6 +52,7 @@ function installTenancyCoreSchemaForMaintenance(): void
 }
 
 beforeEach(function (): void {
+    app(TenantGlobalJobRegistry::class)->register(MaintenanceProbeJob::class);
     config()->set('tenancy.enabled', true);
     $this->tenant = new TenantId('10000000-0000-4000-8000-000000000001');
     $this->operation = new PlatformOperation('recovery', 'user', 'operator');

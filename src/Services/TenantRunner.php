@@ -78,6 +78,32 @@ final readonly class TenantRunner
         return $this->execute(new TenantContextSnapshot(TenantContextMode::Platform), $callback);
     }
 
+    /**
+     * Reuse the normal participant and transaction unwind without granting tenant or platform access.
+     *
+     * @internal Queue adapters must validate their envelope before entry.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $operation
+     * @return T
+     */
+    public function withoutTenant(TenantContextSnapshot $snapshot, Closure $operation): mixed
+    {
+        $this->container->make(TenantMaintenanceLease::class)->assertQueueAllowed();
+        $this->container->make(TenantAdoptionScope::class)->assertQueueAllowed();
+        if (! in_array($snapshot->mode, [TenantContextMode::Unresolved, TenantContextMode::Disabled], true)) {
+            throw new TenantBoundaryViolation('This boundary cannot grant tenant or platform privilege.');
+        }
+
+        $enabled = $this->container->make(Repository::class)->get('tenancy.enabled') === true;
+        if (($snapshot->mode === TenantContextMode::Disabled) === $enabled) {
+            throw new TenantBoundaryViolation('The non-tenant queue context is incompatible with this deployment.');
+        }
+
+        return $this->execute($snapshot, $operation);
+    }
+
     /** Resolve the exact context exposed to consumers and reject incompatible overrides. */
     private function context(): ScopedTenantContext
     {

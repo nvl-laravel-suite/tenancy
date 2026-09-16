@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Console\Commands;
 
+use Illuminate\Bus\BatchRepository;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Database\QueryException;
+use Illuminate\Queue\CallQueuedHandler;
 use Nvl\Tenancy\Exceptions\TenancyException;
+use Nvl\Tenancy\Queue\TenantCallQueuedHandler;
+use Nvl\Tenancy\Queue\TenantDatabaseBatchRepository;
 use Nvl\Tenancy\Services\EffectiveTenantConnection;
 use Nvl\Tenancy\Services\TenantInstallationState;
 use Nvl\Tenancy\Services\TenantOwnershipConfiguration;
@@ -29,7 +33,10 @@ final class TenancyDoctorCommand extends Command
 
             return self::FAILURE;
         }
-        $checks = [];
+        $queueCompatible = TenantCallQueuedHandler::compatible($this->laravel->make(CallQueuedHandler::class));
+        $checks = [['key' => 'tenancy.queue_handler', 'passed' => $queueCompatible, 'severity' => 'error', 'message' => $queueCompatible ? 'Native object queue handler includes the tenant boundary; custom handlers require explicit adapters.' : 'The host queue handler must compose TenantCallQueuedHandler for call and failed.']];
+        $batchCompatible = TenantDatabaseBatchRepository::compatible($this->laravel->make(BatchRepository::class));
+        $checks[] = ['key' => 'tenancy.batch_repository', 'passed' => $batchCompatible, 'severity' => 'error', 'message' => $batchCompatible ? 'Native database batches include tenant callback validation.' : 'Tenant batches require a compatible native database batch repository.'];
         $deployment = null;
         try {
             $deployment = $ownership->inspect();
