@@ -19,15 +19,17 @@ adapter contracts, and fail-closed error vocabulary used by tenant-aware NVL
 packages on Laravel 13 and PHP 8.4.
 
 The package is inert by default. Its provider registers a scoped disabled
-context, loads no migrations, attaches no global middleware, and leaves package
-queries unchanged while `tenancy.enabled` is `false`. Queue guards are registered
-without capturing an application or tenant and act only during a recovery lease.
+context, the default migration switch loads no schema, no global middleware is
+attached, and package queries remain unchanged while `tenancy.enabled` is
+`false`. Queue guards are registered without capturing an application or tenant
+and act only during a recovery lease.
 
 ## Requirements and installation
 
 ```bash
 composer require nvl/laravel-suite:^2.0
 php artisan vendor:publish --tag=tenancy-config
+php artisan vendor:publish --tag=tenancy-migrations
 php artisan vendor:publish --tag=tenancy-skills
 ```
 
@@ -55,14 +57,32 @@ adapter. Missing membership and platform adapters deny access; the package
 directory fallback fails with `TenantSchemaNotReady` until its optional store
 exists. Selecting a host directory requires a host adapter.
 
+Core storage is a separate opt-in migration set. Set
+`tenancy.migrations.enabled=true` to register it with Laravel migrations, or
+publish `tenancy-migrations` when the application owns the migration copy. The
+set runs on `tenancy.connection` and creates the tenant directory, installation
+state, privileged-operation audit, adoption runs, and reviewed adoption mappings.
+Feature activation never registers this path by itself. A package-owned effective
+directory receives tenant foreign keys; an effective host directory keeps its
+application tenant identifiers as verified references.
+
 ## Disabled compatibility
 
 Resolve `Nvl\Tenancy\Contracts\TenantContext` to inspect the immutable current
 snapshot. Disabled installations return `TenantContextMode::Disabled` and need
 no Tenancy tables. Ordinary tenant execution and tenant maintenance reject
 disabled configuration. Explicitly authorized, durably audited platform work can
-provision core storage before tenant activation. Enabling the flag alone is not
-a resource-adoption or isolation path.
+provision package directory entries before tenant activation. Enabling the feature
+flag alone is not a resource-adoption or isolation path.
+
+`ProvisionTenantAction::execute(string, PlatformOperation)` creates an active
+package-directory tenant with a server-generated UUID after authorization and a
+durable audit. Names are trimmed and must contain 1–255 characters.
+`ChangeTenantStatusAction::execute(TenantId, TenantStatus, PlatformOperation)`
+locks the canonical row before changing its lifecycle state. Suspended and
+deleted tenants stop ordinary admission on the next directory check. Both actions
+reject an effective host directory because host storage writes remain application
+owned.
 
 ## Scoped execution and admission
 
@@ -136,9 +156,10 @@ their collection binding remain intact; unused configured drivers do not block
 maintenance. Host queue managers, dispatcher instances, and payload callbacks are
 preserved.
 
-This milestone provides real SQL directory/audit adapters but no production
-migrations or package integrations. Tests use only a disposable audit-table
-fixture until the core-schema milestone supplies the actual migration.
+The opt-in core migration now supplies the real SQL directory and audit stores
+used by these boundaries. It does not adopt any domain package or make its queries
+tenant-safe; each integration still requires its own later resource schema,
+predicates, writes, adoption adapter, diagnostics, and acceptance tests.
 
 ## Security
 
@@ -158,10 +179,11 @@ composer format
 composer validate:distribution
 ```
 
-The foundation tests cover disabled installation, immutable context values,
-typed missing-context failures, lazy adapter validation, scoped execution,
-transaction balance, participant restoration, HTTP admission, and recovery
-authorization/audit/queue boundaries. See [UPGRADING.md](UPGRADING.md), [SECURITY.md](SECURITY.md),
+The foundation tests cover disabled and explicitly registered schema installation,
+package-directory provisioning and lifecycle, immutable context values, typed
+missing-context failures, lazy adapter validation, scoped execution, transaction
+balance, participant restoration, HTTP admission, and recovery authorization,
+audit, and queue boundaries. See [UPGRADING.md](UPGRADING.md), [SECURITY.md](SECURITY.md),
 [CONTRIBUTING.md](CONTRIBUTING.md), and [CHANGELOG.md](CHANGELOG.md).
 
 ## License

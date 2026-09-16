@@ -16,4 +16,8 @@ All notable changes to `nvl/tenancy` are documented here.
   lifecycle checks, real guarded SQL directory/audit adapters, and explicit HTTP
   membership/public-site admission before route binding.
 - Added authorized synchronous maintenance leases with durable audit, cleanup
-  revocation, current-scope queue guards, and disposable audit-store tests.
+  revocation, current-scope queue guards, and real opt-in core-store tests.
+- Added the separately enabled five-table core migration set, package-owned tenant
+  provisioning and lifecycle actions, configured-connection persistence, and
+  durable privileged-operation audit coverage without activating downstream
+  package tenancy.

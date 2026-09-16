@@ -48,6 +48,7 @@ final class TenancyServiceProvider extends ServiceProvider
         $configuration = $this->app->make(TenancyConfiguration::class);
         $configuration->validate();
         $this->registerConfiguredAdapters();
+        $this->registerMigrations();
         $this->callAfterResolving(Kernel::class, static function (Kernel $kernel): void {
             $kernel->addToMiddlewarePriorityBefore(SubstituteBindings::class, RequireTenantMembership::class);
             $kernel->addToMiddlewarePriorityBefore(SubstituteBindings::class, ResolvePublicTenant::class);
@@ -110,6 +111,20 @@ final class TenancyServiceProvider extends ServiceProvider
             if (is_string($adapter)) {
                 $this->app->bindIf($contract, $adapter);
             }
+        }
+    }
+
+    /** Publish the core migration set and register it only when explicitly enabled. */
+    private function registerMigrations(): void
+    {
+        $path = __DIR__.'/../../database/migrations/tenancy';
+
+        $this->publishesMigrations([
+            $path => database_path('migrations'),
+        ], 'tenancy-migrations');
+
+        if (config('tenancy.migrations.enabled') === true) {
+            $this->loadMigrationsFrom($path);
         }
     }
 

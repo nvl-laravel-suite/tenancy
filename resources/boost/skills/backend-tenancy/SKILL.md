@@ -11,8 +11,16 @@ writes, grants, adoption adapter, and lifecycle.
 
 ## Preserve the foundation boundary
 
-- Keep the provider inert when `tenancy.enabled` is false: no schema, routes,
-  middleware, resource adoption, or query changes.
+- Keep the default provider state inert: `tenancy.enabled=false` does not itself
+  register schema, routes, middleware, resource adoption, or query changes.
+- Keep migration registration independent from feature activation. Register the
+  five-table core schema only when `tenancy.migrations.enabled=true`; publishing
+  the `tenancy-migrations` tag is the explicit application-owned alternative.
+- Route core schema and package tenant writes through `tenancy.connection`.
+  Provisioning and status mutation require the effective `PackageTenantDirectory`;
+  host directory writes remain host owned and tenant foreign keys are omitted.
+- Authorize and durably record bounded platform-operation facts before starting
+  privileged callback transactions or writing tenant rows.
 - Treat context as scoped state. Public package callers receive only the
   read-only `TenantContext` contract.
 - Validate deployment configuration and adapter class strings without resolving
@@ -26,4 +34,5 @@ writes, grants, adoption adapter, and lifecycle.
 
 Run focused package tests serially, then Pint, package PHPStan, package-family
 validation, root configuration/module tests, Composer validation, and public
-contract checks. Prove disabled compatibility without loading Tenancy migrations.
+contract checks. Prove disabled compatibility without loading Tenancy migrations,
+then prove the separately enabled core migration on the configured connection.

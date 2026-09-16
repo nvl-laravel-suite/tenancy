@@ -90,6 +90,7 @@ it('rejects invalid deployment configuration', function (string $path, mixed $va
     'non-boolean enablement' => ['tenancy.enabled', 'false', 'tenancy.enabled must be a boolean.'],
     'unknown strategy' => ['tenancy.strategy', 'database-per-tenant', 'Unsupported tenancy strategy [database-per-tenant].'],
     'unknown profile' => ['tenancy.profile', 'custom', 'Unsupported tenancy profile [custom].'],
+    'non-boolean migrations' => ['tenancy.migrations.enabled', 'true', 'tenancy.migrations.enabled must be a boolean.'],
     'unknown family' => ['tenancy.resources.media', 'tenant', 'Unknown tenancy resource family [media].'],
     'invalid sharing' => ['tenancy.sharing.media', 'shared', 'Unsupported tenancy sharing mode [shared] for [media].'],
     'cached closure' => ['tenancy.resolvers.http', static fn (): null => null, 'Tenancy configuration must not contain closures.'],

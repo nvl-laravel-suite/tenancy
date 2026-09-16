@@ -8,6 +8,7 @@ use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Contracts\Foundation\MaintenanceMode;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Defer\DeferredCallbackCollection;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
@@ -23,6 +24,7 @@ use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
 use Nvl\Tenancy\Exceptions\TenantInactive;
 use Nvl\Tenancy\Exceptions\TenantNotFound;
 use Nvl\Tenancy\Exceptions\TenantSchemaNotReady;
+use Nvl\Tenancy\Providers\TenancyServiceProvider;
 use Nvl\Tenancy\Services\DenyPlatformAccess;
 use Nvl\Tenancy\Services\TenantContextParticipants;
 use Nvl\Tenancy\Services\TenantMaintenanceLease;
@@ -31,16 +33,22 @@ use Nvl\Tenancy\Services\TenantMaintenanceRunner;
 use Nvl\Tenancy\Services\TenantOperationRecorder;
 use Nvl\Tenancy\Services\TenantRunner;
 use Nvl\Tenancy\Tests\Fixtures\ArrayTenantDirectory;
+use Nvl\Tenancy\Tests\Fixtures\InMemoryMaintenanceMode;
 use Nvl\Tenancy\Tests\Fixtures\MaintenanceProbeJob;
-use Nvl\Tenancy\Tests\Fixtures\TemporaryOperationStore;
 use Nvl\Tenancy\Tests\Fixtures\TestContextParticipant;
-use Nvl\Tenancy\Tests\Fixtures\TestMaintenanceMode;
 use Nvl\Tenancy\Tests\Fixtures\TestPlatformAccess;
 use Nvl\Tenancy\ValueObjects\PlatformOperation;
 use Nvl\Tenancy\ValueObjects\TenantDescriptor;
 use Nvl\Tenancy\ValueObjects\TenantId;
 
 use function Illuminate\Support\defer;
+
+function installTenancyCoreSchemaForMaintenance(): void
+{
+    config()->set('tenancy.migrations.enabled', true);
+    (new TenancyServiceProvider(app()))->boot();
+    Artisan::call('migrate', ['--force' => true]);
+}
 
 beforeEach(function (): void {
     config()->set('tenancy.enabled', true);
@@ -49,7 +57,7 @@ beforeEach(function (): void {
     $this->directory = new ArrayTenantDirectory([$this->tenant->value => new TenantDescriptor($this->tenant, TenantStatus::Suspended)]);
     app()->instance(TenantDirectory::class, $this->directory);
     app()->instance(PlatformAccess::class, new TestPlatformAccess);
-    app()->instance(MaintenanceMode::class, new TestMaintenanceMode);
+    app()->instance(MaintenanceMode::class, new InMemoryMaintenanceMode);
     MaintenanceProbeJob::$executions = 0;
     Queue::connection('sync');
 });
@@ -61,7 +69,7 @@ it('requires audit storage before granting recovery', function (): void {
 });
 
 it('admits inactive tenants only within a synchronous audited recovery lease', function (TenantStatus $status): void {
-    TemporaryOperationStore::create();
+    installTenancyCoreSchemaForMaintenance();
     $this->directory->tenants[$this->tenant->value] = new TenantDescriptor($this->tenant, $status);
     $runner = app(TenantRunner::class);
     expect(fn () => $runner->run($this->tenant, fn () => test()->fail('entered')))->toThrow(TenantInactive::class);
@@ -76,7 +84,7 @@ it('admits inactive tenants only within a synchronous audited recovery lease', f
 })->with([TenantStatus::Suspended, TenantStatus::Deleted]);
 
 it('revokes recovery on exception while preserving its durable audit', function (): void {
-    TemporaryOperationStore::create();
+    installTenancyCoreSchemaForMaintenance();
     expect(fn () => app(TenantMaintenanceRunner::class)->run($this->tenant, $this->operation, fn () => throw new RuntimeException('recovery')))
         ->toThrow(RuntimeException::class, 'recovery');
     expect(app(TenantMaintenanceLease::class)->active())->toBeFalse()
@@ -85,7 +93,7 @@ it('revokes recovery on exception while preserving its durable audit', function 
 });
 
 it('requires feature activation maintenance mode authorization and known identity', function (string $denial, string $exception): void {
-    TemporaryOperationStore::create();
+    installTenancyCoreSchemaForMaintenance();
     match ($denial) {
         'disabled' => config()->set('tenancy.enabled', false),
         'online' => app(MaintenanceMode::class)->deactivate(),
@@ -100,7 +108,7 @@ it('requires feature activation maintenance mode authorization and known identit
 ]);
 
 it('rejects ordinary and after-commit Bus dispatch while recovery owns the scope', function (bool $afterCommit): void {
-    TemporaryOperationStore::create();
+    installTenancyCoreSchemaForMaintenance();
     app(TenantMaintenanceRunner::class)->run($this->tenant, $this->operation, function () use ($afterCommit): void {
         DB::transaction(function () use ($afterCommit): void {
             $job = new MaintenanceProbeJob;
@@ -117,7 +125,7 @@ it('rejects ordinary and after-commit Bus dispatch while recovery owns the scope
 })->with([true, false]);
 
 it('rejects direct sync queue publication including commit-time payload creation', function (bool $afterCommit): void {
-    TemporaryOperationStore::create();
+    installTenancyCoreSchemaForMaintenance();
     app(TenantMaintenanceRunner::class)->run($this->tenant, $this->operation, function () use ($afterCommit): void {
         expect(fn () => DB::transaction(function () use ($afterCommit): void {
             $job = new MaintenanceProbeJob;
@@ -131,7 +139,7 @@ it('rejects direct sync queue publication including commit-time payload creation
 })->with([true, false]);
 
 it('rolls back deferred sync jobs with leaked callback transactions', function (): void {
-    TemporaryOperationStore::create();
+    installTenancyCoreSchemaForMaintenance();
     Exceptions::fake();
     expect(fn () => app(TenantMaintenanceRunner::class)->run($this->tenant, $this->operation, function (): void {
         config()->set('database.connections.unrelated', config('database.connections.sqlite'));
@@ -145,7 +153,7 @@ it('rolls back deferred sync jobs with leaked callback transactions', function (
 });
 
 it('rejects recovery entry with a preexisting unrelated transaction even in the same tenant', function (): void {
-    TemporaryOperationStore::create();
+    installTenancyCoreSchemaForMaintenance();
     $this->directory->tenants[$this->tenant->value] = new TenantDescriptor($this->tenant, TenantStatus::Active);
     config()->set('database.connections.unrelated', config('database.connections.sqlite'));
     app(TenantRunner::class)->run($this->tenant, function (): void {
@@ -161,7 +169,7 @@ it('rejects recovery entry with a preexisting unrelated transaction even in the 
 });
 
 it('forbids changing tenants or entering platform mode inside a recovery lease', function (): void {
-    TemporaryOperationStore::create();
+    installTenancyCoreSchemaForMaintenance();
     $other = new TenantId('10000000-0000-4000-8000-000000000002');
     $this->directory->tenants[$other->value] = new TenantDescriptor($other, TenantStatus::Active);
     app(TenantMaintenanceRunner::class)->run($this->tenant, $this->operation, function () use ($other): void {
@@ -171,7 +179,7 @@ it('forbids changing tenants or entering platform mode inside a recovery lease',
 });
 
 it('does not admit a new privileged operation inside the audit transaction', function (): void {
-    TemporaryOperationStore::create();
+    installTenancyCoreSchemaForMaintenance();
     DB::beginTransaction();
     try {
         expect(fn () => app(TenantRunner::class)->platform($this->operation, fn () => test()->fail('entered')))
@@ -183,7 +191,7 @@ it('does not admit a new privileged operation inside the audit transaction', fun
 });
 
 it('allows explicit audited platform provisioning while tenancy is disabled', function (): void {
-    TemporaryOperationStore::create();
+    installTenancyCoreSchemaForMaintenance();
     config()->set('tenancy.enabled', false);
     expect(app(TenantRunner::class)->platform($this->operation, fn () => app(TenantContext::class)->snapshot()->mode))
         ->toBe(TenantContextMode::Platform);
@@ -192,7 +200,7 @@ it('allows explicit audited platform provisioning while tenancy is disabled', fu
 });
 
 it('rejects empty and overlong audit facts before privileged work', function (string $purpose): void {
-    TemporaryOperationStore::create();
+    installTenancyCoreSchemaForMaintenance();
     expect(fn () => app(TenantOperationRecorder::class)->record(new PlatformOperation($purpose, 'user', '1')))
         ->toThrow(TenantConfigurationInvalid::class);
     expect(DB::table('nvl_tenancy_operations')->count())->toBe(0);
@@ -212,7 +220,7 @@ it('registers a single current-scope queue guard while preserving host callbacks
         TenantMaintenanceQueueGuard::register();
         TenantMaintenanceQueueGuard::register();
         expect($callbacks->getValue())->toHaveCount(2);
-        TemporaryOperationStore::create();
+        installTenancyCoreSchemaForMaintenance();
         app(TenantMaintenanceRunner::class)->run($this->tenant, $this->operation, function (): void {
             expect(fn () => Queue::push(new MaintenanceProbeJob))->toThrow(TenantBoundaryViolation::class);
         });
@@ -224,7 +232,7 @@ it('registers a single current-scope queue guard while preserving host callbacks
 });
 
 it('fences after-response dispatch and restores the exact host deferral behavior', function (bool $deferred, string $entry): void {
-    TemporaryOperationStore::create();
+    installTenancyCoreSchemaForMaintenance();
     $dispatcher = app(DispatcherContract::class);
     $deferred ? $dispatcher->withDispatchingAfterResponses() : $dispatcher->withoutDispatchingAfterResponses();
     $flag = new ReflectionProperty(NativeDispatcher::class, 'allowsDispatchingAfterResponses');
@@ -254,7 +262,7 @@ it('fences after-response dispatch and restores the exact host deferral behavior
 })->with([true, false])->with(['dispatchable', 'retained']);
 
 it('preserves the after-response fence through rejected nested recovery and callback failure', function (bool $deferred): void {
-    TemporaryOperationStore::create();
+    installTenancyCoreSchemaForMaintenance();
     $dispatcher = app(DispatcherContract::class);
     $deferred ? $dispatcher->withDispatchingAfterResponses() : $dispatcher->withoutDispatchingAfterResponses();
     $flag = new ReflectionProperty(NativeDispatcher::class, 'allowsDispatchingAfterResponses');
@@ -275,7 +283,7 @@ it('preserves the after-response fence through rejected nested recovery and call
 })->with([true, false]);
 
 it('rejects incompatible host dispatchers before entering maintenance work', function (): void {
-    TemporaryOperationStore::create();
+    installTenancyCoreSchemaForMaintenance();
     $dispatcher = Mockery::mock(DispatcherContract::class);
     app()->instance(DispatcherContract::class, $dispatcher);
     expect(fn () => app(TenantMaintenanceRunner::class)->run($this->tenant, $this->operation, fn () => test()->fail('entered')))
@@ -285,7 +293,7 @@ it('rejects incompatible host dispatchers before entering maintenance work', fun
 });
 
 it('restores the host response deferral setting after successful maintenance', function (bool $deferred): void {
-    TemporaryOperationStore::create();
+    installTenancyCoreSchemaForMaintenance();
     $dispatcher = app(DispatcherContract::class);
     $deferred ? $dispatcher->withDispatchingAfterResponses() : $dispatcher->withoutDispatchingAfterResponses();
     $flag = new ReflectionProperty(NativeDispatcher::class, 'allowsDispatchingAfterResponses');
@@ -300,7 +308,7 @@ it('restores the host response deferral setting after successful maintenance', f
 })->with([true, false]);
 
 it('restores the response fence when cleanup reporting throws without replacing the work error', function (bool $deferred): void {
-    TemporaryOperationStore::create();
+    installTenancyCoreSchemaForMaintenance();
     $dispatcher = app(DispatcherContract::class);
     $deferred ? $dispatcher->withDispatchingAfterResponses() : $dispatcher->withoutDispatchingAfterResponses();
     $flag = new ReflectionProperty(NativeDispatcher::class, 'allowsDispatchingAfterResponses');
@@ -325,7 +333,7 @@ it('restores the response fence when cleanup reporting throws without replacing 
 })->with([true, false]);
 
 it('rejects native deferred scheduling before appending to a retained host collection', function (string $entry): void {
-    TemporaryOperationStore::create();
+    installTenancyCoreSchemaForMaintenance();
     config()->set('queue.connections.deferred', ['driver' => 'deferred']);
     config()->set('queue.connections.background', ['driver' => 'background']);
     Process::fake();
