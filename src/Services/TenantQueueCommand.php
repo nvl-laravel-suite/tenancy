@@ -19,6 +19,7 @@ use Nvl\Tenancy\Enums\TenantContextMode;
 use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
 use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
 use Nvl\Tenancy\Queue\TenantDatabaseBatchRepository;
+use Nvl\Tenancy\ValueObjects\TenantContextSnapshot;
 use Nvl\Tenancy\ValueObjects\TenantJobEnvelope;
 use Throwable;
 
@@ -152,7 +153,10 @@ final readonly class TenantQueueCommand
                         throw new TenantBoundaryViolation('A carried envelope differs from the queued tenant boundary.');
                     }
                 }
-                if ($class === ModelIdentifier::class && $envelope->context->mode === TenantContextMode::Tenant) {
+                if (is_string($class) && is_a($class, ModelIdentifier::class, true) && $envelope->context->mode === TenantContextMode::Tenant) {
+                    if (is_subclass_of($class, ModelIdentifier::class)) {
+                        throw new TenantBoundaryViolation('Queued model identifier subtypes are not supported.');
+                    }
                     $this->validateModel($properties);
                 }
                 unset($properties['__PHP_Incomplete_Class_Name']);
@@ -242,7 +246,21 @@ final readonly class TenantQueueCommand
     public function batchEnvelope(string $serialized): TenantJobEnvelope
     {
         $options = $this->decode($serialized);
-        if (! is_array($options) || ! is_array($options['nvl_tenancy'] ?? null)) {
+        if (! is_array($options)) {
+            throw new TenantBoundaryViolation('Native batch options must be an array.');
+        }
+        if ($this->container->make('config')->get('tenancy.enabled') !== true) {
+            if (array_key_exists('nvl_tenancy', $options) && ! is_array($options['nvl_tenancy'])) {
+                throw new TenantBoundaryViolation('Persisted batch context is malformed.');
+            }
+            $envelope = array_key_exists('nvl_tenancy', $options)
+                ? $this->container->make(TenantQueuePayload::class)->decode($options['nvl_tenancy'])
+                : new TenantJobEnvelope(new TenantContextSnapshot(TenantContextMode::Disabled));
+            $this->container->make(TenantQueueContext::class)->run($envelope, fn () => $this->inspect($options, $envelope, 0));
+
+            return $envelope;
+        }
+        if (! is_array($options['nvl_tenancy'] ?? null)) {
             throw new TenantBoundaryViolation('Tenant batches require explicitly captured options.');
         }
         $envelope = $this->container->make(TenantQueuePayload::class)->decode($options['nvl_tenancy']);
@@ -272,7 +290,11 @@ final readonly class TenantQueueCommand
         }
         $model = new $definition->model;
         $connection = $properties['connection'] ?? null;
-        if ($connection !== null && $connection !== $model->getConnection()->getName()) {
+        if ($connection !== null && ! is_string($connection)) {
+            throw new TenantBoundaryViolation('Queued model connections must be null or a connection name.');
+        }
+        $canonicalConnection = $model->getConnection();
+        if ($model->setConnection($connection)->getConnection() !== $canonicalConnection) {
             throw new TenantBoundaryViolation('Queued models must use their canonical connection.');
         }
         $ids = $properties['id'] ?? null;

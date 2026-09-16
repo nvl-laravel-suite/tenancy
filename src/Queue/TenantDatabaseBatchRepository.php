@@ -70,16 +70,14 @@ class TenantDatabaseBatchRepository extends DatabaseBatchRepository
         if (! is_string($serialized)) {
             throw new TenantBoundaryViolation('Native batch options must be serialized bytes.');
         }
-        if ($app->make('config')->get('tenancy.enabled') === true) {
-            $raw = $serialized;
-            if ($this->connection instanceof PostgresConnection && ! str_contains($raw, ':') && ! str_contains($raw, ';')) {
-                $raw = base64_decode($raw, true);
-                if ($raw === false) {
-                    throw new TenantBoundaryViolation('Native PostgreSQL batch options are malformed.');
-                }
+        $raw = $serialized;
+        if ($this->connection instanceof PostgresConnection && ! str_contains($raw, ':') && ! str_contains($raw, ';')) {
+            $raw = base64_decode($raw, true);
+            if ($raw === false) {
+                throw new TenantBoundaryViolation('Native PostgreSQL batch options are malformed.');
             }
-            $app->make(TenantQueueCommand::class)->batchEnvelope($raw);
         }
+        $app->make(TenantQueueCommand::class)->batchEnvelope($raw);
 
         return parent::unserialize($serialized);
     }

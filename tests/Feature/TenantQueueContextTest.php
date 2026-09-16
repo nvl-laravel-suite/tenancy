@@ -6,6 +6,7 @@ use Illuminate\Bus\BatchFactory;
 use Illuminate\Bus\BatchRepository;
 use Illuminate\Bus\DatabaseBatchRepository;
 use Illuminate\Contracts\Bus\Dispatcher;
+use Illuminate\Contracts\Database\ModelIdentifier;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\PostgresConnection;
 use Illuminate\Database\Schema\Blueprint;
@@ -547,3 +548,117 @@ it('accepts pre-installation legacy object payloads only in disabled unadopted w
     (new SyncJob(app(), json_encode($data, JSON_THROW_ON_ERROR), 'sync', 'default'))->fire();
     expect(MaintenanceProbeJob::$executions)->toBe(1);
 });
+
+/** A canonical model whose explicit storage differs from a worker's default. */
+class QueueNamedConnectionModel extends ProbeRestoredModel
+{
+    protected $connection = 'queue_canonical';
+}
+
+/** Native restoration accepts even an empty identifier subtype. */
+class QueueModelIdentifierSubtype extends ModelIdentifier {}
+
+it('checks native null connection identity before normal and failure restoration', function (bool $failure, bool $differentDefault): void {
+    $originalDefault = DB::getDefaultConnection();
+    config()->set('database.connections.queue_canonical', config('database.connections.'.$originalDefault));
+    config()->set('tenancy.connection', 'queue_canonical');
+    DB::setDefaultConnection('queue_canonical');
+    app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('tests.records', 'tests', QueueNamedConnectionModel::class));
+    QueueProbeInstallation::install();
+    $record = QueueNamedConnectionModel::create(['tenant_id' => $this->a->value, 'name' => 'owned']);
+    $probe = app(TenantRunner::class)->run($this->a, fn () => new ProbeTenantJob(record: $record));
+    $payload = json_decode(queueProbePayload($this->a, $probe), true, flags: JSON_THROW_ON_ERROR);
+    $payload['data']['command'] = str_replace('s:10:"connection";s:15:"queue_canonical";', 's:10:"connection";N;', $payload['data']['command'], $replacements);
+    expect($replacements)->toBe(1);
+    if ($differentDefault) {
+        DB::setDefaultConnection($originalDefault);
+        Schema::create('tenancy_test_records', static function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('tenant_id');
+            $table->string('name');
+            $table->softDeletes();
+        });
+        DB::table('tenancy_test_records')->insert(['id' => $record->id, 'tenant_id' => $this->b->value, 'name' => 'foreign default']);
+    }
+    $job = new SyncJob(app(), json_encode($payload, JSON_THROW_ON_ERROR), 'sync', 'default');
+    $execute = fn () => $failure ? $job->fail(new RuntimeException) : $job->fire();
+    if ($differentDefault) {
+        expect($execute)->toThrow(TenantBoundaryViolation::class)
+            ->and(ProbeTenantJob::$observations)->toBe([])
+            ->and(ProbeRestoredModel::$restored)->toBe([]);
+    } else {
+        $execute();
+        expect(array_column(ProbeTenantJob::$observations, 'stage'))->toBe(['unserialize', $failure ? 'failed' : 'handle'])
+            ->and(ProbeRestoredModel::$restored)->toBe([$record->id]);
+    }
+})->with([false, true])->with([false, true]);
+
+it('recognizes native identifier hierarchy aliases and case before foreign restoration', function (string $representation): void {
+    app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('tests.records', 'tests', ProbeRestoredModel::class));
+    QueueProbeInstallation::install();
+    $foreign = ProbeRestoredModel::create(['tenant_id' => $this->b->value, 'name' => 'foreign']);
+    $probe = app(TenantRunner::class)->run($this->a, fn () => new ProbeTenantJob(record: $foreign));
+    $payload = json_decode(queueProbePayload($this->a, $probe), true, flags: JSON_THROW_ON_ERROR);
+    $base = ModelIdentifier::class;
+    if (! class_exists('QueueIdentifierAlias', false)) {
+        class_alias(QueueModelIdentifierSubtype::class, 'QueueIdentifierAlias');
+        class_alias($base, 'QueueBaseIdentifierAlias');
+    }
+    $class = match ($representation) {
+        'subtype' => QueueModelIdentifierSubtype::class,
+        'subtype-case' => strtolower(QueueModelIdentifierSubtype::class),
+        'subtype-alias' => 'QueueIdentifierAlias',
+        'base-case' => strtolower($base),
+        'base-alias' => 'QueueBaseIdentifierAlias',
+    };
+    $payload['data']['command'] = str_replace('O:'.strlen($base).':"'.$base.'":', 'O:'.strlen($class).':"'.$class.'":', $payload['data']['command'], $replacements);
+    expect($replacements)->toBe(1);
+    $job = new SyncJob(app(), json_encode($payload, JSON_THROW_ON_ERROR), 'sync', 'default');
+    expect(fn () => $job->fire())->toThrow(TenantBoundaryViolation::class)
+        ->and(fn () => $job->fail(new RuntimeException))->toThrow(TenantBoundaryViolation::class)
+        ->and(ProbeTenantJob::$observations)->toBe([])
+        ->and(ProbeRestoredModel::$restored)->toBe([]);
+})->with(['subtype', 'subtype-case', 'subtype-alias', 'base-case', 'base-alias']);
+
+it('admits disabled direct batch reads before any callback object restoration', function (bool $adopted, string $metadata): void {
+    createTenantQueueBatchStorage();
+    app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('tests.records', 'tests', ProbeRestoredModel::class));
+    if ($adopted) {
+        QueueProbeInstallation::install();
+    } else {
+        Schema::create('tenancy_test_records', static function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('tenant_id');
+            $table->string('name');
+            $table->softDeletes();
+        });
+    }
+    $record = ProbeRestoredModel::create(['tenant_id' => $this->a->value, 'name' => 'batch model']);
+    config()->set('tenancy.enabled', false);
+    app()->forgetScopedInstances();
+    $probe = new ProbeTenantJob;
+    $pending = Bus::batch([])->then(static function () use ($record, $probe): void {
+        $probe->handle();
+        ProbeRestoredModel::$restored[] = $record->id;
+    });
+    if ($metadata !== 'absent') {
+        $pending->options['nvl_tenancy'] = match ($metadata) {
+            'tenant' => ['version' => 1, 'mode' => 'tenant', 'tenant_id' => $this->a->value],
+            'disabled' => ['version' => 1, 'mode' => 'disabled', 'tenant_id' => null],
+            'malformed' => null,
+        };
+    }
+    $bytes = serialize($pending->options);
+    expect($bytes)->toContain('Serializers\\Signed', 'ModelIdentifier');
+    DB::table('job_batches')->insert(['id' => 'direct-read', 'name' => '', 'total_jobs' => 0, 'pending_jobs' => 0, 'failed_jobs' => 0, 'failed_job_ids' => '[]', 'options' => $bytes, 'created_at' => time()]);
+    $read = fn () => app(BatchRepository::class)->find('direct-read');
+    if ($metadata === 'tenant' || $metadata === 'malformed' || $adopted) {
+        expect($read)->toThrow($metadata === 'tenant' || $metadata === 'malformed' ? TenantBoundaryViolation::class : TenantSchemaNotReady::class)
+            ->and(ProbeRestoredModel::$restored)->toBe([])
+            ->and(ProbeTenantJob::$observations)->toBe([]);
+    } else {
+        expect($read()?->id)->toBe('direct-read')
+            ->and(ProbeRestoredModel::$restored)->toBe([$record->id])
+            ->and(array_column(ProbeTenantJob::$observations, 'stage'))->toBe(['unserialize']);
+    }
+})->with([false, true])->with(['tenant', 'absent', 'disabled', 'malformed']);
