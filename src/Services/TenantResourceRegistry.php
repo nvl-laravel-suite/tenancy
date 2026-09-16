@@ -99,7 +99,7 @@ final class TenantResourceRegistry
     /** Resolve a registered package key or fail closed. */
     public function get(string $key): TenantResourceDefinition
     {
-        return $this->resources[$key] ?? throw new TenantConfigurationInvalid("Unknown tenancy resource [{$key}].");
+        return $this->resources[$key] ?? throw new TenantConfigurationInvalid(sprintf('Unknown tenancy resource [%s].', mb_strimwidth($key, 0, 160, '...')));
     }
 
     /** Resolve the exact registered concrete model without accepting subclasses implicitly. */

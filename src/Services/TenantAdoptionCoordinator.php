@@ -142,6 +142,7 @@ final readonly class TenantAdoptionCoordinator
     /** Apply all final constraints before publishing the entire graph as active together. */
     public function activate(TenantAdoptionPlan $plan, PlatformOperation $operation): void
     {
+        $this->ownership->assertReady();
         $this->mutate($operation, function () use ($plan): void {
             [$run, $graph] = $this->validated($plan);
             if (! $this->verifyGraph($plan, $run, $graph)->passed()) {

@@ -41,6 +41,7 @@ final readonly class TenantRunner
         if ($this->container->make(Repository::class)->get('tenancy.enabled') !== true) {
             throw new TenantConfigurationInvalid('Tenant execution requires tenancy.enabled.');
         }
+        $this->container->make(TenantOwnershipConfiguration::class)->assertReady();
         $this->context();
         $descriptor = $this->container->make(TenantDirectory::class)->find($tenant);
         if ($descriptor->id->value !== $tenant->value) {

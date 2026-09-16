@@ -101,9 +101,12 @@ final readonly class TenantBoundary
         ], JSON_THROW_ON_ERROR));
     }
 
-    /** Validate schema first and recheck current directory status without caching admission. */
+    /** Validate composition and schema, then recheck directory status without caching admission. */
     private function admit(TenantResourceDefinition $resource): ?TenantContextSnapshot
     {
+        if ($this->container->make(Repository::class)->get('tenancy.enabled') === true) {
+            $this->ownership()->assertReady();
+        }
         $this->container->make(TenantInstallationState::class)->assertUsable($resource->key);
         if ($this->container->make(Repository::class)->get('tenancy.enabled') !== true) {
             return null;

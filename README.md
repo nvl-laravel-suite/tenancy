@@ -72,6 +72,53 @@ Feature activation never registers this path by itself. A package-owned effectiv
 directory receives tenant foreign keys; an effective host directory keeps its
 application tenant identifiers as verified references.
 
+### Runtime compatibility and readiness
+
+Provider selection, `tenancy.enabled`, ownership configuration, and persisted
+adoption readiness are separate facts. `nvl:suite:configuration --format=json`
+reports selected/loaded providers and a separate `tenancy` object with feature
+state, effective connection, registered models/tables/modes and incompatible
+loaded families. This metadata inspection does not probe schema; its schema
+status is `not-probed`. `nvl:tenancy:doctor --json` performs explicit read-only
+storage probes and reports core storage, each resource's installation state,
+and interrupted runs separately. Database errors fail diagnostics; they never
+mean that a database is unadopted.
+
+Loaded stateful NVL runtime providers require their real code-owned resource
+family and adoption adapter registrations before tenant activation. CSV requires
+an adoption adapter, which may legitimately expose zero resources; no artificial
+CSV marker or family is required. Neutral Support/Data/Filterable/Primitives stay
+outside this check. Translatable is owner-driven: it owns neither production
+schema nor an adoption adapter; its owners must supply declarations and guards.
+Its lack of roots is not evidence of tenant isolation. Composer package presence
+without a loaded runtime provider does not activate a family.
+
+Incomplete integrations remain bootable in Unresolved context for diagnostics
+and narrowly admitted platform bootstrap. They are readiness errors while
+Tenancy is enabled, and `TenantOwnershipConfiguration::assertReady()` rejects
+ordinary tenant entry, tenant maintenance, boundary use (including host context
+implementations), and adoption activation. Structural family, parent, and
+dependency contradictions still fail after provider registration. Platform
+provisioning remains separately authorized. There is no configuration bypass
+list, fabricated default ownership for unregistered families, or implicit legacy
+Settings tenant access. Future integrations must ship their actual guards and
+adapters; this foundation alone does not make those packages tenant-safe.
+
+Resolver values are `null` or a class string, never chains/lists. Nested maps use
+shared deep merging and ordinary configuration lists replace atomically. Host
+binding precedence and conflicting explicit class configuration are validated
+without constructing request adapters. Unknown keys and invalid values produce
+bounded diagnostic labels.
+
+### Choose one migration owner
+
+For package-owned migrations, set `tenancy.migrations.enabled=true` and do not publish
+`tenancy-migrations`. For application-owned migrations, publish with
+`php artisan vendor:publish --tag=tenancy-migrations` and keep
+`tenancy.migrations.enabled=false`. Never run both migration copies. Publication
+uses Laravel's timestamp-aware migration API; released core migration files are
+immutable. Both modes are independent of the feature flag and resource adoption.
+
 ## Disabled compatibility
 
 Resolve `Nvl\Tenancy\Contracts\TenantContext` to inspect the immutable current
@@ -177,7 +224,7 @@ exact synchronous maintenance lease admits suspended/deleted tenants.
 
 These are package infrastructure, not consumer bypass APIs:
 
-- `TenantResourceRegistry::requireCompatible(family, dependency)` declares a
+- `TenantOwnershipConfiguration::requireCompatible(family, dependency)` declares a
   family dependency whose mutable ownership modes must match; fixed vocabulary
   is excluded from mode-split checks. Core imports no domain
   package to infer these edges.
@@ -371,6 +418,12 @@ composer analyse
 composer format
 composer validate:distribution
 ```
+
+The engine-aware `TenantSupportedDatabaseTest` runs real prefixed core schema,
+package/host directory constraints, interrupted coordinator adoption, final DDL,
+and consumer-owned up/down migrations on PostgreSQL 17, MySQL 8.4, MariaDB 12.3,
+and SQLite. The selected `DB_CONNECTION` is asserted; focused lifecycle cases
+retain intentional isolated SQLite aliases. Use only disposable test databases.
 
 The foundation tests cover disabled and explicitly registered schema installation,
 package-directory provisioning and lifecycle, immutable context values, typed

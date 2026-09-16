@@ -80,3 +80,26 @@ Internal callback scopes identify run/adapter/phase but grant no ordinary bounda
 access or tenant recovery lease. Queue, after-response, deferred and background
 publication must remain fenced. Native connection locks span DDL/checkpoints; no
 reconnect or session swap is allowed. SQLite file locks require local storage.
+
+## Configuration and composition readiness
+
+Use `TenantOwnershipConfiguration::requireCompatible(family, dependency)` for
+code-owned mutable dependency rules. Keep fixed vocabulary platform-owned and
+children bound to canonical parents. Resolver config is null or one class string;
+never create a resolver-list API or client-defined resource-family registry.
+
+Keep provider selection, feature enablement, metadata compatibility, and actual
+schema/adoption state separate. Incomplete loaded stateful integrations must be
+reported by Doctor after successful Unresolved boot and rejected by
+`TenantOwnershipConfiguration::assertReady()` before tenant entry, maintenance,
+boundary use or adoption activation. Platform bootstrap never grants tenant
+Settings access. Do not add a bypass list or fabricate readiness registrations.
+CSV is adoption-only and may expose zero resources; Translatable is owner-driven
+without its own production schema/adopter. Neutral foundational libraries remain
+outside resource ownership. None of these classifications proves an unimplemented
+package integration safe.
+
+Use the dedicated engine-aware schema/adoption case for PostgreSQL, MySQL 8.4 and
+MariaDB (actual mariadb driver) proof. Preserve intentional SQLite-only fixtures.
+Package-owned optional migrations and published consumer copies are exclusive:
+leave migrations.enabled false for the consumer-owned copy and never run both.

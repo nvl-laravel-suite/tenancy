@@ -35,6 +35,7 @@ final readonly class TenantMaintenanceRunner
         if ($this->container->make(Repository::class)->get('tenancy.enabled') !== true) {
             throw new TenantConfigurationInvalid('Tenant maintenance requires tenancy.enabled.');
         }
+        $this->container->make(TenantOwnershipConfiguration::class)->assertReady();
         if (! $this->container->make(MaintenanceMode::class)->active()) {
             throw new TenantBoundaryViolation('Tenant recovery requires application maintenance mode.');
         }

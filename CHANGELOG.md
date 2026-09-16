@@ -6,6 +6,13 @@ All notable changes to `nvl/tenancy` are documented here.
 
 ### Added
 
+- Separate runtime provider compatibility from feature enablement and persisted
+  adoption readiness, while preserving Unresolved platform bootstrap.
+- Enforce metadata readiness before tenant execution and adoption activation;
+  add bounded configuration and ownership/dependency diagnostics.
+- Verify real core schema/adoption and consumer-owned migrations on supported
+  database engines; classify optional migrations explicitly in family quality gates.
+
 - Added explicit resumable adoption with immutable streamed mappings, package-owned
   metadata validation, connection-wide process locks, durable phase audits, real
   adapter DDL/checkpoints and atomic active markers.

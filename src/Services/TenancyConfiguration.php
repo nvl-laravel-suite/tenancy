@@ -166,7 +166,7 @@ final readonly class TenancyConfiguration
             }
 
             if (! in_array($mode, ['tenant', 'platform'], true)) {
-                throw new TenantConfigurationInvalid("Unsupported tenancy resource mode for [{$family}].");
+                throw new TenantConfigurationInvalid(sprintf('Unsupported tenancy resource mode for [%s].', $this->displayValue($family)));
             }
         }
     }
@@ -240,7 +240,7 @@ final readonly class TenancyConfiguration
             if (! $reflection->isInstantiable()) {
                 throw new TenantConfigurationInvalid(sprintf(
                     'Configured adapter [%s] must be an instantiable class implementing [%s].',
-                    $adapter,
+                    $this->displayValue($adapter),
                     $contract,
                 ));
             }
@@ -302,7 +302,7 @@ final readonly class TenancyConfiguration
         $missing = array_values(array_diff($expected, $actual));
 
         if ($unknown !== []) {
-            throw new TenantConfigurationInvalid("Unknown configuration key [{$path}.{$unknown[0]}].");
+            throw new TenantConfigurationInvalid(sprintf('Unknown configuration key [%s].', $this->displayValue($path.'.'.$unknown[0])));
         }
 
         if ($missing !== []) {
@@ -337,14 +337,8 @@ final readonly class TenancyConfiguration
      */
     private function displayValue(mixed $value): string
     {
-        if (is_string($value)) {
-            return $value;
-        }
+        $label = is_string($value) ? $value : (is_object($value) ? $value::class : get_debug_type($value));
 
-        if (is_object($value)) {
-            return $value::class;
-        }
-
-        return get_debug_type($value);
+        return mb_strimwidth(preg_replace('/[\x00-\x1f\x7f]/u', '?', mb_convert_encoding($label, 'UTF-8', 'UTF-8')) ?? '', 0, 160, '...');
     }
 }

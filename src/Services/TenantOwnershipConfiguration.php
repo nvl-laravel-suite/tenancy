@@ -7,6 +7,7 @@ namespace Nvl\Tenancy\Services;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Application;
 use Nvl\Tenancy\Contracts\TenantDirectory;
 use Nvl\Tenancy\Contracts\TenantParentResolver;
 use Nvl\Tenancy\Enums\TenantResourceKind;
@@ -20,6 +21,30 @@ use Nvl\Tenancy\ValueObjects\TenantResourceDefinition;
  */
 final readonly class TenantOwnershipConfiguration
 {
+    /**
+     * Stateful runtime providers whose integration must explicitly register ownership and adoption.
+     * These strings are compatibility metadata, not dependencies on optional domain packages.
+     *
+     * @var array<string, string>
+     */
+    private const array RUNTIME_PROVIDERS = [
+        'activity' => 'Nvl\\Activity\\Providers\\ActivityServiceProvider',
+        'auth' => 'Nvl\\Auth\\Providers\\AuthServiceProvider',
+        'comments' => 'Nvl\\Comments\\Providers\\CommentsServiceProvider',
+        'content' => 'Nvl\\Content\\Providers\\ContentServiceProvider',
+        'csv' => 'Nvl\\Csv\\Providers\\CsvServiceProvider',
+        'forms' => 'Nvl\\Forms\\Providers\\FormsServiceProvider',
+        'mail-notifications' => 'Nvl\\MailNotifications\\Providers\\MailNotificationsServiceProvider',
+        'media' => 'Nvl\\Media\\Providers\\MediaServiceProvider',
+        'metafields' => 'Nvl\\Metafields\\Providers\\MetafieldsServiceProvider',
+        'pages' => 'Nvl\\Pages\\Providers\\PagesServiceProvider',
+        'seo' => 'Nvl\\Seo\\Providers\\SeoServiceProvider',
+        'settings' => 'Nvl\\Settings\\Providers\\SettingsServiceProvider',
+        'taxonomy' => 'Nvl\\Taxonomy\\Providers\\TaxonomyServiceProvider',
+        'templates' => 'Nvl\\Templates\\Providers\\TemplatesServiceProvider',
+        'translations' => 'Nvl\\Translations\\Providers\\TranslationsServiceProvider',
+    ];
+
     /** Create a registry-aware ownership validator without retaining request state. */
     public function __construct(private Repository $configuration, private TenantResourceRegistry $registry, private EffectiveTenantConnection $connections, private Container $container) {}
 
@@ -37,7 +62,7 @@ final readonly class TenantOwnershipConfiguration
         }
         foreach ($overrides as $family => $mode) {
             if (! is_string($family) || ! isset($families[$family])) {
-                throw new TenantConfigurationInvalid("Unknown tenancy resource family [{$family}].");
+                throw new TenantConfigurationInvalid(sprintf('Unknown tenancy resource family [%s].', mb_strimwidth((string) $family, 0, 160, '...')));
             }
             if (! in_array($mode, ['tenant', 'platform'], true)) {
                 throw new TenantConfigurationInvalid('Resource ownership modes must be tenant or platform.');
@@ -69,6 +94,69 @@ final readonly class TenantOwnershipConfiguration
                 }
             }
         }
+    }
+
+    /** Declare a code-owned dependency between mutable family ownership modes. */
+    public function requireCompatible(string $family, string $dependency): void
+    {
+        $this->registry->requireCompatible($family, $dependency);
+    }
+
+    /**
+     * List incompatible loaded runtime families without resolving adapters or probing storage.
+     *
+     * @return list<string>
+     */
+    public function incompatibleFamilies(): array
+    {
+        if (! $this->container instanceof Application) {
+            return [];
+        }
+        $families = array_fill_keys(array_map(static fn (TenantResourceDefinition $resource): string => $resource->family, $this->registry->all()), true);
+        $adapters = $this->container->make(TenantAdoptionRegistry::class)->all();
+        $incompatible = [];
+        foreach (self::RUNTIME_PROVIDERS as $family => $provider) {
+            if ($this->container->providerIsLoaded($provider) && (($family !== 'csv' && ! isset($families[$family])) || ! isset($adapters[$family]))) {
+                $incompatible[] = $family;
+            }
+        }
+
+        return $incompatible;
+    }
+
+    /** Reject actual tenant activation while loaded runtime packages lack their integration. */
+    public function assertReady(): void
+    {
+        $this->validate();
+        if ($this->configuration->get('tenancy.enabled') === true && ($incompatible = $this->incompatibleFamilies()) !== []) {
+            throw new TenantConfigurationInvalid('Loaded runtime packages require tenancy integration: '.implode(', ', $incompatible).'.');
+        }
+    }
+
+    /**
+     * Describe deployment configuration separately from lazy storage/adoption readiness.
+     *
+     * @return array{enabled: bool, profile: string, connection: string, compatible: bool, incompatible_families: list<string>, resources: array<string, array{family: string, mode: string, model: string, table: string, connection: string}>, schema: string}
+     */
+    public function inspect(): array
+    {
+        $this->validate();
+        $resources = [];
+        foreach ($this->registry->all() as $key => $resource) {
+            $model = new $resource->model;
+            $resources[$key] = [
+                'family' => $resource->family, 'mode' => $this->mode($resource), 'model' => $resource->model,
+                'table' => $model->getTable(), 'connection' => $this->connections->name($model->getConnectionName()),
+            ];
+        }
+        $incompatible = $this->incompatibleFamilies();
+        $enabled = $this->configuration->get('tenancy.enabled') === true;
+
+        return [
+            'enabled' => $enabled, 'profile' => 'application', 'connection' => $this->connections->core()->getName() ?? '',
+            'compatible' => ! $enabled || $incompatible === [], 'incompatible_families' => $incompatible,
+            'resources' => $resources, 'schema' => 'not-probed',
+        ];
     }
 
     /** Return effective ownership, inheriting canonical parents and rejecting contradictory overrides. */
