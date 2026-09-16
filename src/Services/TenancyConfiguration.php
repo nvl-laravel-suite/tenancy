@@ -13,6 +13,8 @@ use Nvl\Tenancy\Contracts\TenantHttpResolver;
 use Nvl\Tenancy\Contracts\TenantMembershipAccess;
 use Nvl\Tenancy\Contracts\TenantSiteResolver;
 use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
+use ReflectionClass;
+use ReflectionFunction;
 
 /**
  * Validates deployment-level tenancy configuration without resolving adapters.
@@ -231,12 +233,56 @@ final readonly class TenancyConfiguration
                 ));
             }
 
-            if ($this->container->bound($contract)) {
+            $reflection = new ReflectionClass($adapter);
+
+            if (! $reflection->isInstantiable()) {
+                throw new TenantConfigurationInvalid(sprintf(
+                    'Configured adapter [%s] must be an instantiable class implementing [%s].',
+                    $adapter,
+                    $contract,
+                ));
+            }
+
+            if ($this->hasConflictingBinding($contract, $adapter)) {
                 throw new TenantConfigurationInvalid(
                     "{$path} conflicts with an existing host binding for [{$contract}].",
                 );
             }
         }
+    }
+
+    /**
+     * Determine whether an existing binding differs from the configured class.
+     *
+     * Inspect binding metadata without resolving or constructing the adapter.
+     *
+     * @param  class-string  $contract
+     * @param  class-string  $adapter
+     */
+    private function hasConflictingBinding(string $contract, string $adapter): bool
+    {
+        if (! $this->container->bound($contract)) {
+            return false;
+        }
+
+        $binding = $this->container->getBindings()[$contract] ?? null;
+
+        if (! is_array($binding)) {
+            return true;
+        }
+
+        $concrete = $binding['concrete'] ?? null;
+
+        if (! $concrete instanceof Closure) {
+            return true;
+        }
+
+        $reflection = new ReflectionFunction($concrete);
+        $variables = $reflection->getStaticVariables();
+
+        return $reflection->getClosureThis() !== $this->container
+            || ($variables['abstract'] ?? null) !== $contract
+            || ($variables['concrete'] ?? null) !== $adapter;
     }
 
     /**

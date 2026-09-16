@@ -6,17 +6,16 @@ namespace Nvl\Tenancy\Tests\Fixtures;
 
 use LogicException;
 use Nvl\Tenancy\Contracts\TenantDirectory;
-use Nvl\Tenancy\Exceptions\TenantNotFound;
 use Nvl\Tenancy\ValueObjects\TenantDescriptor;
 use Nvl\Tenancy\ValueObjects\TenantId;
 
 /**
- * Test-only host directory used to verify configured adapter contracts.
+ * Conflicting binding fixture that must never be constructed during validation.
  */
-final class TestTenantDirectory implements TenantDirectory
+final class ConflictingTestTenantDirectory implements TenantDirectory
 {
     /**
-     * Fail if structural configuration validation constructs the adapter.
+     * Fail if configuration validation constructs the conflicting adapter.
      */
     public function __construct()
     {
@@ -24,12 +23,10 @@ final class TestTenantDirectory implements TenantDirectory
     }
 
     /**
-     * Reject every lookup because configuration tests never resolve tenants.
-     *
-     * @throws TenantNotFound Always
+     * Return type implementation required by the directory contract.
      */
     public function find(TenantId $tenant): TenantDescriptor
     {
-        throw new TenantNotFound('Tenant was not found.');
+        throw new LogicException('Configuration validation invoked an adapter.');
     }
 }

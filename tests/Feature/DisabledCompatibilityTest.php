@@ -13,8 +13,11 @@ use Nvl\Tenancy\Exceptions\TenantContextMissing;
 use Nvl\Tenancy\Exceptions\TenantInactive;
 use Nvl\Tenancy\Exceptions\TenantNotFound;
 use Nvl\Tenancy\Exceptions\TenantSchemaNotReady;
+use Nvl\Tenancy\Providers\TenancyServiceProvider;
 use Nvl\Tenancy\Services\ScopedTenantContext;
 use Nvl\Tenancy\Services\TenancyConfiguration;
+use Nvl\Tenancy\Tests\Fixtures\AbstractTestTenantDirectory;
+use Nvl\Tenancy\Tests\Fixtures\ConflictingTestTenantDirectory;
 use Nvl\Tenancy\Tests\Fixtures\TestTenantDirectory;
 use Nvl\Tenancy\ValueObjects\TenantContextSnapshot;
 use Nvl\Tenancy\ValueObjects\TenantId;
@@ -104,19 +107,61 @@ it('accepts a valid explicit host directory class without resolving it', functio
         ->and(app()->resolved(TestTenantDirectory::class))->toBeFalse();
 });
 
-it('rejects contradictory explicit adapter configuration and host bindings', function (): void {
+it('allows repeat validation after the provider registers a configured adapter', function (): void {
+    config()->set([
+        'tenancy.directory.driver' => 'host',
+        'tenancy.directory.adapter' => TestTenantDirectory::class,
+    ]);
+
+    (new TenancyServiceProvider(app()))->boot();
+
+    expect(app()->bound(TenantDirectory::class))->toBeTrue()
+        ->and(app(TenancyConfiguration::class)->validate())->toBeNull()
+        ->and(app(TenancyConfiguration::class)->validate())->toBeNull()
+        ->and(app()->resolved(TestTenantDirectory::class))->toBeFalse();
+});
+
+it('allows an identical explicit host binding without resolving it', function (): void {
     config()->set([
         'tenancy.directory.driver' => 'host',
         'tenancy.directory.adapter' => TestTenantDirectory::class,
     ]);
     app()->bind(TenantDirectory::class, TestTenantDirectory::class);
 
+    expect(app(TenancyConfiguration::class)->validate())->toBeNull()
+        ->and(app()->resolved(TestTenantDirectory::class))->toBeFalse();
+});
+
+it('rejects a genuinely conflicting host binding without constructing it', function (): void {
+    config()->set([
+        'tenancy.directory.driver' => 'host',
+        'tenancy.directory.adapter' => TestTenantDirectory::class,
+    ]);
+    app()->bind(TenantDirectory::class, ConflictingTestTenantDirectory::class);
+
     expect(fn (): null => app(TenancyConfiguration::class)->validate())
         ->toThrow(
             TenantConfigurationInvalid::class,
             'tenancy.directory.adapter conflicts with an existing host binding for [Nvl\\Tenancy\\Contracts\\TenantDirectory].',
-        );
+        )
+        ->and(app()->resolved(ConflictingTestTenantDirectory::class))->toBeFalse();
 });
+
+it('rejects non-instantiable configured adapters', function (string $adapter): void {
+    config()->set([
+        'tenancy.directory.driver' => 'host',
+        'tenancy.directory.adapter' => $adapter,
+    ]);
+
+    expect(fn (): null => app(TenancyConfiguration::class)->validate())
+        ->toThrow(
+            TenantConfigurationInvalid::class,
+            "Configured adapter [{$adapter}] must be an instantiable class implementing [Nvl\\Tenancy\\Contracts\\TenantDirectory].",
+        );
+})->with([
+    'interface' => TenantDirectory::class,
+    'abstract class' => AbstractTestTenantDirectory::class,
+]);
 
 it('exposes stable machine-readable tenancy failure codes', function (string $exception, string $code): void {
     expect((new $exception)->responseCode())->toBe($code);
