@@ -1,5 +1,17 @@
 # Upgrading NVL Tenancy
 
+## Tenancy foundation distribution
+
+Standalone `nvl/tenancy:^2.0` requires Support/Data and the declared PHP extensions
+and Symfony runtime components; it requires no NVL Auth. Tenancy and optional core
+migrations remain disabled by default. Its provider now registers a TypeScript
+source, so source diagnostics include `nvl/tenancy` even with tenancy disabled.
+Hosts using Filterable must require it explicitly. Mutation DTOs must omit
+`tenantId`, `tenant_id`, `ownershipKey` and `ownership_key`; canonical ownership is
+assigned by the owning runtime boundary. This foundation release does not imply
+that domain packages have completed their tenancy adoption.
+
+
 ## Unreleased foundation
 
 The foundation is disabled by default and introduces no migration or data

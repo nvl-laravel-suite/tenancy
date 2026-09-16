@@ -6,7 +6,7 @@
 
 | Item | Value |
 |---|---|
-| Installed through | `composer require nvl/laravel-suite:^2.0` |
+| Installed through | `composer require nvl/tenancy:^2.0` |
 | Module identifier | `nvl/tenancy` |
 | PHP namespace | `Nvl\Tenancy` |
 | Service provider | `Nvl\Tenancy\Providers\TenancyServiceProvider` |
@@ -28,14 +28,37 @@ and act only during a recovery lease.
 ## Requirements and installation
 
 ```bash
-composer require nvl/laravel-suite:^2.0
+composer require nvl/tenancy:^2.0
 php artisan vendor:publish --tag=tenancy-config
 php artisan vendor:publish --tag=tenancy-migrations
 php artisan vendor:publish --tag=tenancy-skills
 ```
 
 Laravel auto-discovers `Nvl\Tenancy\Providers\TenancyServiceProvider`. The
-module requires `nvl/support` and `nvl/data` from the Suite 2.x line.
+module requires `nvl/support` and `nvl/data` from the Suite 2.x line. NVL Auth
+is not required. Filterable is an optional host dependency, installed explicitly
+when the host uses its query filters. The Suite install remains supported.
+
+## Foundation distribution contract
+
+`TenantConsumerContractTest.php` verifies inert provider behavior and TypeScript
+source registration. The root `TenancyConsumerWorkflowTest.php` creates actual
+Composer archives, resolves a fresh offline runtime dependency closure, and boots
+an independent Laravel consumer with cached configuration and Doctor. Only the
+Tenancy, Support and Data NVL packages are admitted. An explicit Filterable profile
+adds its archive and reuses neutral host fixtures to prove OR/relation predicates
+preserve an existing tenant restriction and mutation projection omits ownership.
+
+Consumer entry points are the documented contracts, immutable values, lifecycle
+Actions, `TenantRunner`, `TenantBoundary`, and `TenantAdoptionCoordinator`.
+Registration/adoption adapter seams belong to package implementers. Concrete
+scoped context, queue handlers/carriers, maintenance leases and adoption stores
+are infrastructure; their presence in the signature inventory does not make them
+consumer bypass APIs. Do not write the package-owned Tenant model directly.
+
+This is a foundation prerequisite. Auth membership, tenant-owned Settings and
+other domain integrations are not released by this proof. TypeScript discovery
+registers the package source; it adds no ownership mutation DTO.
 
 ## Configuration
 

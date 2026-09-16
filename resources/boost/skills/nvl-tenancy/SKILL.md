@@ -130,3 +130,18 @@ Missing old payload metadata is tolerated only with disabled tenancy and every
 participating resource unadopted. Present malformed metadata and enabled-worker
 Disabled envelopes always fail. Prove call, failed, native worker retries/exhaustion,
 wrapper restoration, signed callback captures, and retained-service cleanup.
+
+## Standalone distribution and utility composition
+
+- Install `nvl/tenancy:^2.0` with its declared Support/Data dependencies; NVL Auth
+  is not required. Explicitly require Filterable for hosts that use its filters.
+- Keep the minimal archive proof free of Suite/Auth/Filterable autoloading. Use a
+  fresh Composer loader and process, package discovery, config cache and Doctor.
+- Source diagnostics include `nvl/tenancy` even when the feature is disabled.
+  Source registration creates no public ownership mutation DTO.
+- Keep client mutation DTOs free of tenant and ownership keys. Preserve the caller
+  predicate when composing custom OR and relation filters; the owning package
+  still supplies the canonical tenant boundary.
+- Concrete scoped context, queue internals, leases and adoption stores are internal.
+  Use the documented contracts and authorized entry points. Foundation distribution
+  is not evidence that later domain tenancy integrations have shipped.

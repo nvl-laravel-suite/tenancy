@@ -7,7 +7,6 @@ use Illuminate\Bus\BatchRepository;
 use Illuminate\Bus\DatabaseBatchRepository;
 use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Contracts\Database\ModelIdentifier;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\PostgresConnection;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Mail\Mailable;
@@ -42,6 +41,7 @@ use Nvl\Tenancy\Services\TenantRunner;
 use Nvl\Tenancy\Tests\Fixtures\ArrayTenantDirectory;
 use Nvl\Tenancy\Tests\Fixtures\EncryptedGlobalProbeJob;
 use Nvl\Tenancy\Tests\Fixtures\EncryptedProbeTenantJob;
+use Nvl\Tenancy\Tests\Fixtures\GlobalMailableWrapper;
 use Nvl\Tenancy\Tests\Fixtures\MaintenanceProbeJob;
 use Nvl\Tenancy\Tests\Fixtures\OwnedRecord;
 use Nvl\Tenancy\Tests\Fixtures\ProbeRestoredModel;
@@ -50,6 +50,8 @@ use Nvl\Tenancy\Tests\Fixtures\ProbeTenantJob;
 use Nvl\Tenancy\Tests\Fixtures\ProbeTenantListener;
 use Nvl\Tenancy\Tests\Fixtures\ProbeTenantMail;
 use Nvl\Tenancy\Tests\Fixtures\ProbeTenantNotification;
+use Nvl\Tenancy\Tests\Fixtures\QueueModelIdentifierSubtype;
+use Nvl\Tenancy\Tests\Fixtures\QueueNamedConnectionModel;
 use Nvl\Tenancy\Tests\Fixtures\QueueProbeInstallation;
 use Nvl\Tenancy\Tests\Fixtures\UniqueProbeTenantJob;
 use Nvl\Tenancy\ValueObjects\TenantContextSnapshot;
@@ -391,8 +393,6 @@ it('never registers generic notification or mailable wrappers as global identity
     expect(fn () => app(TenantGlobalJobRegistry::class)->register($class))->toThrow(TenantConfigurationInvalid::class);
 })->with([SendQueuedMailable::class, SendQueuedNotifications::class]);
 
-class GlobalMailableWrapper extends SendQueuedMailable implements ShouldQueue {}
-
 it('rejects host subclasses of generic framework wrappers as global identity registrations', function (): void {
     expect(fn () => app(TenantGlobalJobRegistry::class)->register(GlobalMailableWrapper::class))->toThrow(TenantConfigurationInvalid::class);
 });
@@ -548,15 +548,6 @@ it('accepts pre-installation legacy object payloads only in disabled unadopted w
     (new SyncJob(app(), json_encode($data, JSON_THROW_ON_ERROR), 'sync', 'default'))->fire();
     expect(MaintenanceProbeJob::$executions)->toBe(1);
 });
-
-/** A canonical model whose explicit storage differs from a worker's default. */
-class QueueNamedConnectionModel extends ProbeRestoredModel
-{
-    protected $connection = 'queue_canonical';
-}
-
-/** Native restoration accepts even an empty identifier subtype. */
-class QueueModelIdentifierSubtype extends ModelIdentifier {}
 
 it('checks native null connection identity before normal and failure restoration', function (bool $failure, bool $differentDefault): void {
     $originalDefault = DB::getDefaultConnection();

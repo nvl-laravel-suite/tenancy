@@ -3,19 +3,30 @@
     "description": "Explicit tenant context and isolation contracts for Laravel applications",
     "type": "library",
     "license": "MIT",
-    "keywords": ["laravel", "multi-tenancy", "tenancy"],
+    "keywords": [
+        "laravel",
+        "multi-tenancy",
+        "tenancy"
+    ],
     "require": {
         "php": "^8.4",
+        "ext-filter": "*",
+        "ext-mbstring": "*",
+        "ext-pdo": "*",
         "laravel/framework": "^13.0",
         "nvl/data": "^2.0",
-        "nvl/support": "^2.0"
+        "nvl/support": "^2.0",
+        "symfony/http-foundation": "^7.2 || ^8.0",
+        "symfony/http-kernel": "^7.2 || ^8.0"
     },
     "require-dev": {
         "larastan/larastan": "^3.10",
         "laravel/pint": "^1.27",
+        "mockery/mockery": "^1.6",
         "orchestra/testbench": "^11.0",
         "pestphp/pest": "^4.0",
-        "pestphp/pest-plugin-laravel": "^4.0"
+        "pestphp/pest-plugin-laravel": "^4.0",
+        "symfony/process": "^7.2 || ^8.0"
     },
     "autoload": {
         "psr-4": {
@@ -63,7 +74,11 @@
             "/.phpunit.result.cache",
             "/phpstan.neon.dist",
             "/phpunit.xml.dist",
-            "/tests"
+            "/tests",
+            "/vendor",
+            "/.gitattributes",
+            "/.gitignore",
+            "/composer.lock"
         ]
     },
     "minimum-stability": "stable",

@@ -59,11 +59,15 @@ it('preserves deep maps and replaces neutral lists atomically while rejecting re
 
 it('keeps host directory precedence and validates serializable cached class configuration', function (): void {
     app()->bind(TenantDirectory::class, TestTenantDirectory::class);
+    $original = app()->getBindings()[TenantDirectory::class];
     config()->set('tenancy.directory', ['driver' => 'host', 'adapter' => TestTenantDirectory::class]);
     $cached = eval('return '.var_export(config('tenancy'), true).';');
     config()->set('tenancy', $cached);
     app(TenancyConfiguration::class)->validate();
-    expect(app()->bound(TenantDirectory::class))->toBeTrue();
+    $provider = new TenancyServiceProvider(app());
+    $provider->register();
+    app()->call([$provider, 'boot']);
+    expect(app()->getBindings()[TenantDirectory::class])->toBe($original);
 });
 
 it('reports feature configuration connection and adoption as separate readiness facts', function (): void {

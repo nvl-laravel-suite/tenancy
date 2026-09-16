@@ -4,6 +4,10 @@ All notable changes to `nvl/tenancy` are documented here.
 
 ## [Unreleased]
 
+- Prove standalone Tenancy archives with only Support/Data, cached configuration,
+  Doctor and disabled compatibility; explicitly provision Filterable composition,
+  register Tenancy type sources, and correct existing dependency/test autoload metadata.
+
 - Restore explicitly captured queued tenant context before command/failure deserialization, validate native representations and canonical model ownership, and unwind worker state.
 
 ### Added

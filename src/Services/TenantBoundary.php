@@ -216,9 +216,9 @@ final readonly class TenantBoundary
             $base->setBindings([], 'where');
             $base->addNestedWhereQuery($nested);
         }
-        $query->where($query->qualifyColumn('tenant_id'), $snapshot->tenantId?->value);
+        $query->where($query->getModel()->qualifyColumn('tenant_id'), $snapshot->tenantId?->value);
         if ($resource->allowsPlatformCatalog || $resource->allowsPlatformRows) {
-            $query->where($query->qualifyColumn('ownership_key'), $this->ownershipKey($snapshot));
+            $query->where($query->getModel()->qualifyColumn('ownership_key'), $this->ownershipKey($snapshot));
         }
         if ($resource->kind === TenantResourceKind::Inherited) {
             $relation = $this->parentRelation($resource);

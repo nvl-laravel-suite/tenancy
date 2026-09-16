@@ -13,6 +13,7 @@ use Illuminate\Queue\CallQueuedHandler;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Defer\DeferredCallbackCollection;
 use Illuminate\Support\ServiceProvider;
+use Nvl\Data\Services\TypeScriptSourceRegistry;
 use Nvl\Support\Traits\MergesPackageConfiguration;
 use Nvl\Tenancy\Console\Commands\TenancyAdoptCommand;
 use Nvl\Tenancy\Console\Commands\TenancyDoctorCommand;
@@ -57,6 +58,7 @@ final class TenancyServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->app->make(TypeScriptSourceRegistry::class)->register(__DIR__.'/..', 'nvl/tenancy');
         $configuration = $this->app->make(TenancyConfiguration::class);
         $configuration->validate();
         $this->app->booted(fn () => $this->app->make(TenantOwnershipConfiguration::class)->validate());
