@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Providers;
 
+use Illuminate\Container\Container;
+use Illuminate\Contracts\Http\Kernel;
+use Illuminate\Contracts\Queue\Factory as QueueFactory;
+use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\ServiceProvider;
 use Nvl\Support\Traits\MergesPackageConfiguration;
 use Nvl\Tenancy\Contracts\PlatformAccess;
@@ -12,8 +17,20 @@ use Nvl\Tenancy\Contracts\TenantDirectory;
 use Nvl\Tenancy\Contracts\TenantHttpResolver;
 use Nvl\Tenancy\Contracts\TenantMembershipAccess;
 use Nvl\Tenancy\Contracts\TenantSiteResolver;
+use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Tenancy\Exceptions\TenantContextMissing;
+use Nvl\Tenancy\Http\Middleware\RequireTenantMembership;
+use Nvl\Tenancy\Http\Middleware\ResolvePublicTenant;
+use Nvl\Tenancy\Services\DenyPlatformAccess;
+use Nvl\Tenancy\Services\DenyTenantMembershipAccess;
+use Nvl\Tenancy\Services\PackageTenantDirectory;
 use Nvl\Tenancy\Services\ScopedTenantContext;
 use Nvl\Tenancy\Services\TenancyConfiguration;
+use Nvl\Tenancy\Services\TenantContextParticipants;
+use Nvl\Tenancy\Services\TenantMaintenanceLease;
+use Nvl\Tenancy\Services\TenantMaintenanceQueueGuard;
+use Nvl\Tenancy\ValueObjects\TenantSiteContext;
 
 /**
  * Registers inert tenancy configuration and scoped context services.
@@ -30,6 +47,10 @@ final class TenancyServiceProvider extends ServiceProvider
         $configuration = $this->app->make(TenancyConfiguration::class);
         $configuration->validate();
         $this->registerConfiguredAdapters();
+        $this->callAfterResolving(Kernel::class, static function (Kernel $kernel): void {
+            $kernel->addToMiddlewarePriorityBefore(SubstituteBindings::class, RequireTenantMembership::class);
+            $kernel->addToMiddlewarePriorityBefore(SubstituteBindings::class, ResolvePublicTenant::class);
+        });
 
         $this->publishes([
             __DIR__.'/../../config/tenancy.php' => config_path('tenancy.php'),
@@ -47,7 +68,26 @@ final class TenancyServiceProvider extends ServiceProvider
     {
         $this->mergePackageConfiguration(__DIR__.'/../../config/tenancy.php', 'tenancy');
         $this->app->singleton(TenancyConfiguration::class);
-        $this->app->scopedIf(TenantContext::class, ScopedTenantContext::class);
+        $this->app->scopedIf(ScopedTenantContext::class);
+        $this->app->scopedIf(TenantContext::class, static fn (Container $app): ScopedTenantContext => $app->make(ScopedTenantContext::class));
+        $this->app->scopedIf(TenantMaintenanceLease::class);
+        $this->app->singleton(TenantContextParticipants::class);
+        $this->registerFallbackAdapters();
+        $this->app->bindIf(TenantSiteContext::class, static function (Container $app): TenantSiteContext {
+            $site = $app->make(Request::class)->attributes->get(TenantSiteContext::class);
+            if (! $site instanceof TenantSiteContext) {
+                throw new TenantContextMissing('No verified public site is active for this request.');
+            }
+            if ($app->make(TenantContext::class)->requireTenant()->value !== $site->tenantId->value) {
+                throw new TenantBoundaryViolation('The verified public site differs from the active tenant.');
+            }
+
+            return $site;
+        });
+        $this->app->beforeResolving(QueueFactory::class, static function (): void {
+            Container::getInstance()->make(TenantMaintenanceLease::class)->assertQueueAllowed();
+        });
+        TenantMaintenanceQueueGuard::register();
     }
 
     /**
@@ -67,6 +107,25 @@ final class TenancyServiceProvider extends ServiceProvider
             if (is_string($adapter)) {
                 $this->app->bindIf($contract, $adapter);
             }
+        }
+    }
+
+    /** Register fallbacks only on resolution so host configuration remains lazily inspectable. */
+    private function registerFallbackAdapters(): void
+    {
+        foreach ([
+            TenantDirectory::class => PackageTenantDirectory::class,
+            TenantMembershipAccess::class => DenyTenantMembershipAccess::class,
+            PlatformAccess::class => DenyPlatformAccess::class,
+        ] as $contract => $fallback) {
+            $this->app->beforeResolving($contract, static function (string $abstract, array $parameters, Container $app) use ($contract, $fallback): void {
+                if (! $app->bound($contract)) {
+                    if ($contract === TenantDirectory::class && $app->make('config')->get('tenancy.directory.driver') !== 'package') {
+                        throw new TenantConfigurationInvalid('A host tenant directory adapter must be bound.');
+                    }
+                    $app->bind($contract, $fallback);
+                }
+            });
         }
     }
 }
