@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Contracts\Foundation\MaintenanceMode;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -14,6 +15,7 @@ use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
 use Nvl\Tenancy\Exceptions\TenantContextMissing;
 use Nvl\Tenancy\Exceptions\TenantInactive;
 use Nvl\Tenancy\Services\TenantBoundary;
+use Nvl\Tenancy\Services\TenantInstallationState;
 use Nvl\Tenancy\Services\TenantMaintenanceRunner;
 use Nvl\Tenancy\Services\TenantResourceRegistry;
 use Nvl\Tenancy\Services\TenantRunner;
@@ -25,6 +27,7 @@ use Nvl\Tenancy\Tests\Fixtures\OwnedRecord;
 use Nvl\Tenancy\Tests\Fixtures\PolymorphicRecord;
 use Nvl\Tenancy\Tests\Fixtures\TestPlatformAccess;
 use Nvl\Tenancy\ValueObjects\PlatformOperation;
+use Nvl\Tenancy\ValueObjects\TenantId;
 use Nvl\Tenancy\ValueObjects\TenantResourceDefinition;
 
 beforeEach(function (): void {
@@ -122,7 +125,7 @@ it('scopes mixed rows with a null tenant and platform discriminator only in auth
     app()->instance(PlatformAccess::class, new TestPlatformAccess);
     OwnedRecord::create(['tenant_id' => null, 'ownership_key' => 'platform', 'name' => 'catalog']);
     $invalid = OwnedRecord::create(['tenant_id' => null, 'ownership_key' => null, 'name' => 'ambiguous']);
-    OwnedRecord::create(['tenant_id' => $tenants[0]->value, 'ownership_key' => 'tenant', 'name' => 'tenant']);
+    OwnedRecord::create(['tenant_id' => $tenants[0]->value, 'ownership_key' => 'tenant:'.$tenants[0]->value, 'name' => 'tenant']);
     OwnedRecord::create(['tenant_id' => $tenants[0]->value, 'ownership_key' => 'platform', 'name' => 'contradictory']);
     app(TenantRunner::class)->platform(new PlatformOperation('catalog', 'user', 'operator'), function () use ($invalid): void {
         expect(app(TenantBoundary::class)->query(OwnedRecord::query(), 'tests.records')->pluck('name')->all())->toBe(['catalog'])
@@ -221,3 +224,102 @@ it('requires the package morph allowlist before canonical owner construction and
         expect(app(TenantBoundary::class)->query(PolymorphicRecord::query(), 'tests.poly')->pluck('name')->all())->toBe(['good']);
     });
 });
+
+it('rejects an SQL builder swapped onto unadopted storage while retaining the canonical Eloquent model', function (bool $enabled): void {
+    $tenants = $enabled ? F4InstallationFixture::install() : [new TenantId('10000000-0000-4000-8000-000000000001')];
+    config()->set('database.connections.other', config('database.connections.sqlite'));
+    $other = DB::connection('other');
+    $other->getSchemaBuilder()->create('tenancy_test_records', function (Blueprint $table): void {
+        $table->uuid('id')->primary();
+        $table->uuid('tenant_id');
+        $table->string('name');
+        $table->softDeletes();
+    });
+    $other->table('tenancy_test_records')->insert([
+        'id' => '20000000-0000-4000-8000-000000000001',
+        'tenant_id' => $tenants[0]->value,
+        'name' => 'unadopted-other-connection',
+    ]);
+    $query = OwnedRecord::query()->setQuery($other->table('tenancy_test_records'));
+    expect($query->getModel()->getConnection())->toBe(DB::connection())
+        ->and($query->getQuery()->getConnection())->toBe($other)
+        ->and($other->getSchemaBuilder()->hasTable('nvl_tenancy_installation_state'))->toBeFalse()
+        ->and((clone $query)->pluck('name')->all())->toBe(['unadopted-other-connection']);
+    $assertDenied = function () use ($query): void {
+        expect(fn () => app(TenantBoundary::class)->query($query, 'tests.records')->pluck('name')->all())
+            ->toThrow(TenantBoundaryViolation::class);
+    };
+    if ($enabled) {
+        app(TenantRunner::class)->run($tenants[0], $assertDenied);
+    } else {
+        $assertDenied();
+    }
+})->with([true, false]);
+
+it('preserves a replacement SQL builder on the canonical unadopted connection', function (): void {
+    OwnedRecord::create(['name' => 'legacy']);
+    $query = OwnedRecord::query()->setQuery(DB::connection()->table('tenancy_test_records'));
+    expect(app(TenantBoundary::class)->query($query, 'tests.records'))->toBe($query)
+        ->and($query->pluck('name')->all())->toBe(['legacy']);
+});
+
+it('rejects alternate SQL sources and unions before disabled resource admission', function (string $shape): void {
+    app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('private.records', 'private', InheritedRecord::class));
+    Schema::create('tenancy_test_children', function (Blueprint $table): void {
+        $table->uuid('id')->primary();
+        $table->uuid('tenant_id');
+        $table->string('name');
+        $table->softDeletes();
+    });
+    $tenants = F4InstallationFixture::install();
+    F4InstallationFixture::mark('private.records');
+    InheritedRecord::create(['tenant_id' => $tenants[0]->value, 'name' => 'adopted-private-row']);
+    DB::table('nvl_tenancy_installation_state')->where('resource', 'tests.records')->delete();
+    app(TenantInstallationState::class)->invalidate();
+    config()->set('tenancy.enabled', false);
+    $query = OwnedRecord::withoutGlobalScopes();
+    if ($shape === 'union') {
+        $query->select(['id', 'tenant_id', 'name'])->union(DB::table('tenancy_test_children')->select(['id', 'tenant_id', 'name']));
+    } else {
+        $source = $shape === 'alias' ? 'tenancy_test_children as tenancy_test_records' : 'tenancy_test_children';
+        $query->setQuery(DB::table($source));
+    }
+    expect((clone $query)->get()->pluck('name')->all())->toBe(['adopted-private-row'])
+        ->and(fn () => app(TenantBoundary::class)->query($query, 'tests.records')->get())
+        ->toThrow(TenantBoundaryViolation::class);
+})->with(['replacement', 'alias', 'union']);
+
+it('preserves A and B natural uniqueness using tenant-specific mixed ownership keys', function (): void {
+    app()->instance(TenantResourceRegistry::class, new TenantResourceRegistry);
+    app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('tests.records', 'tests', OwnedRecord::class, allowsPlatformRows: true));
+    Schema::table('tenancy_test_records', function (Blueprint $table): void {
+        $table->unique(['ownership_key', 'name']);
+    });
+    $tenants = F4InstallationFixture::install();
+    foreach ($tenants as $tenant) {
+        app(TenantRunner::class)->run($tenant, function (): void {
+            OwnedRecord::create([...app(TenantBoundary::class)->attributes('tests.records'), 'name' => 'same-business-key']);
+        });
+    }
+    expect(OwnedRecord::orderBy('tenant_id')->pluck('ownership_key')->all())->toBe([
+        'tenant:10000000-0000-4000-8000-000000000001',
+        'tenant:10000000-0000-4000-8000-000000000002',
+    ]);
+    expect(fn () => app(TenantRunner::class)->run($tenants[0], fn () => OwnedRecord::create([
+        ...app(TenantBoundary::class)->attributes('tests.records'), 'name' => 'same-business-key',
+    ])))->toThrow(QueryException::class);
+});
+
+it('rejects forged persisted mixed discriminators even when the tenant column and dirty key match', function (string $forgery): void {
+    app()->instance(TenantResourceRegistry::class, new TenantResourceRegistry);
+    app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('tests.records', 'tests', OwnedRecord::class, allowsPlatformRows: true));
+    $tenants = F4InstallationFixture::install();
+    $key = $forgery === 'other-tenant' ? 'tenant:'.$tenants[1]->value : $forgery;
+    $forged = OwnedRecord::create(['tenant_id' => $tenants[0]->value, 'ownership_key' => $key, 'name' => 'forged']);
+    $valid = OwnedRecord::create(['tenant_id' => $tenants[0]->value, 'ownership_key' => 'tenant:'.$tenants[0]->value, 'name' => 'valid']);
+    $forged->ownership_key = $valid->ownership_key;
+    app(TenantRunner::class)->run($tenants[0], function () use ($forged): void {
+        expect(fn () => app(TenantBoundary::class)->assertRecord($forged, 'tests.records'))->toThrow(TenantBoundaryViolation::class)
+            ->and(app(TenantBoundary::class)->query(OwnedRecord::query(), 'tests.records')->pluck('name')->all())->toBe(['valid']);
+    });
+})->with(['tenant', 'other-tenant', 'platform']);

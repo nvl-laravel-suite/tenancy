@@ -37,6 +37,8 @@ writes, grants, adoption adapter, and lifecycle.
 - Use `TenantBoundary` for queries, records, generated root fields and identity
   keys. Reload and lock under the predicate before writes; recheck status before
   external effects. Never authorize through dirty fields or loaded relations.
+- Generate mixed `ownership_key` values as `platform` or `tenant:<canonical UUID>`
+  so natural uniqueness remains tenant-specific. Tenant-only tables omit this field.
 - Map persisted polymorphic types through the package allowlist using the internal
   `TenantParentResolver` adapter before registry lookup or class construction.
 - Store `TenantOwnershipConfiguration::fingerprint(resource)` in each marker and

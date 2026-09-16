@@ -30,15 +30,6 @@ final readonly class TenantOwnershipConfiguration
         foreach ($this->registry->all() as $resource) {
             $families[$resource->family][] = $resource;
             $this->mode($resource);
-            if ($resource->kind === TenantResourceKind::Inherited && $resource->parentResource === null) {
-                $override = $this->configuration->get('tenancy.resources.'.$resource->family);
-                foreach ($this->parentTypes($resource->key) as $parentClass) {
-                    $parent = $this->registry->forModel(new $parentClass);
-                    if ($override !== null && $override !== $this->mode($parent)) {
-                        throw new TenantConfigurationInvalid('Inherited resources cannot override their parent ownership mode.');
-                    }
-                }
-            }
         }
         $overrides = $this->configuration->get('tenancy.resources', []);
         if (! is_array($overrides)) {
@@ -83,23 +74,7 @@ final readonly class TenantOwnershipConfiguration
     /** Return effective ownership, inheriting canonical parents and rejecting contradictory overrides. */
     public function mode(TenantResourceDefinition $resource): string
     {
-        $override = $this->configuration->get('tenancy.resources.'.$resource->family);
-        if ($override !== null && ! in_array($override, ['tenant', 'platform'], true)) {
-            throw new TenantConfigurationInvalid('Resource ownership modes must be tenant or platform.');
-        }
-        if ($resource->kind === TenantResourceKind::Platform) {
-            return 'platform';
-        }
-        if ($resource->parentResource !== null) {
-            $mode = $this->mode($this->registry->get($resource->parentResource));
-            if ($override !== null && $override !== $mode) {
-                throw new TenantConfigurationInvalid('Inherited resources cannot override their parent ownership mode.');
-            }
-
-            return $mode;
-        }
-
-        return $override ?? 'tenant';
+        return $this->deriveMode($resource, []);
     }
 
     /**
@@ -156,6 +131,53 @@ final readonly class TenantOwnershipConfiguration
         return hash('sha256', json_encode($fingerprints, JSON_THROW_ON_ERROR));
     }
 
+    /**
+     * Resolve the complete parent graph before applying a compatible child override.
+     *
+     * @param  array<string, true>  $visited
+     */
+    private function deriveMode(TenantResourceDefinition $resource, array $visited): string
+    {
+        if (isset($visited[$resource->key])) {
+            throw new TenantConfigurationInvalid('Resource ownership contains a cycle.');
+        }
+        $visited[$resource->key] = true;
+        $override = $this->configuration->get('tenancy.resources.'.$resource->family);
+        if ($override !== null && ! in_array($override, ['tenant', 'platform'], true)) {
+            throw new TenantConfigurationInvalid('Resource ownership modes must be tenant or platform.');
+        }
+        if ($resource->kind === TenantResourceKind::Platform) {
+            return 'platform';
+        }
+        if ($resource->kind === TenantResourceKind::Root) {
+            return $override ?? 'tenant';
+        }
+        $parents = [];
+        if ($resource->parentResource !== null) {
+            $parents[] = $this->registry->get($resource->parentResource);
+        } else {
+            foreach ($this->parentTypes($resource->key) as $parentClass) {
+                $parents[] = $this->registry->forModel(new $parentClass);
+            }
+        }
+        $mode = null;
+        foreach ($parents as $parent) {
+            $parentMode = $this->deriveMode($parent, $visited);
+            if ($mode !== null && $mode !== $parentMode) {
+                throw new TenantConfigurationInvalid('Polymorphic parents must have one consistent ownership mode.');
+            }
+            $mode = $parentMode;
+        }
+        if ($mode === null) {
+            throw new TenantConfigurationInvalid('Inherited ownership requires at least one registered parent.');
+        }
+        if ($override !== null && $override !== $mode) {
+            throw new TenantConfigurationInvalid('Inherited resources cannot override their parent ownership mode.');
+        }
+
+        return $mode;
+    }
+
     /** Validate actual adapter output before constructing parent models.
      * @param  array<mixed>  $types
      * @return array<string, class-string<Model>>
@@ -194,6 +216,7 @@ final readonly class TenantOwnershipConfiguration
             'mode' => $this->mode($resource), 'table' => $model->getTable(),
             'connection' => $this->connections->name($model->getConnectionName()),
             'columns' => ['tenant_id', ...($resource->allowsPlatformCatalog || $resource->allowsPlatformRows ? ['ownership_key'] : [])],
+            ...($resource->allowsPlatformCatalog || $resource->allowsPlatformRows ? ['ownership_key_format' => 'platform|tenant:<uuid>'] : []),
             'parent_resolver' => $types === [] ? null : $this->registry->parentResolver($resource->key),
             'parent_types' => $types, 'dependencies' => $dependencies,
         ];

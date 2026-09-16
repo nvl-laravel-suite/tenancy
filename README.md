@@ -147,9 +147,12 @@ are idempotent; conflicting keys/models and declared parent cycles fail.
 `TenantBoundary::query()` verifies installation state and wraps existing caller
 conditions before adding qualified ownership predicates. Tenant mode selects the
 current tenant; platform mode selects only nullable platform partitions with
-`ownership_key=platform`. Mixed tenant rows require `ownership_key=tenant`.
+`ownership_key=platform`. Mixed tenant rows require
+`ownership_key=tenant:<uuid>`, using their canonical tenant UUID so portable unique
+indexes retain a distinct partition for each tenant.
 Tenant-only roots deny platform access. Fixed platform vocabulary requires its
-own package reader. Queries must use the registered canonical table; aliased
+own package reader. The underlying SQL builder must use the registered canonical
+connection and table, including during disabled compatibility checks; aliased
 root tables and unions are rejected because a single predicate cannot safely
 cover them. Soft-delete and other Eloquent scopes remain in effect.
 
@@ -157,7 +160,9 @@ cover them. Soft-delete and other Eloquent scopes remain in effect.
 model's validated connection. Dirty tenant IDs, keys, foreign keys, and retained
 relations cannot supply ownership evidence. Inherited predicates and record checks
 follow the canonical parent and reject unknown owners, cycles, or incompatible
-connections. This check does not lock business content: package writers must
+connections. Polymorphic effective modes derive recursively from all allowlisted
+parents; conflicting modes, missing parents and cycles fail configuration
+validation. This check does not lock business content: package writers must
 reload and lock records under the tenant predicate before mutation, and validate
 again immediately before external side effects.
 
@@ -187,7 +192,8 @@ These are package infrastructure, not consumer bypass APIs:
   JSON format version 1: strategy/profile, effective core connection, configured
   directory driver/adapter and effective adapter class, then the sorted resource
   ownership closure. Each definition includes family/model/kind, parent/relation,
-  catalog/mixed flags, effective mode, table/connection, fixed ownership columns,
+  catalog/mixed flags, effective mode, table/connection, fixed ownership columns
+  and the mixed discriminator format (`platform|tenant:<uuid>`),
   parent resolver/type map, and sorted declared family dependencies. Parent and
   dependency definitions are recursively included. Unrelated resources are not.
   `hash(list<string> resources)` hashes the sorted selected resource-to-fingerprint

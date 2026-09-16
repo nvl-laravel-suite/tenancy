@@ -26,6 +26,7 @@ use Nvl\Tenancy\Tests\Fixtures\F4InstallationFixture;
 use Nvl\Tenancy\Tests\Fixtures\InheritedRecord;
 use Nvl\Tenancy\Tests\Fixtures\LateResourceProvider;
 use Nvl\Tenancy\Tests\Fixtures\OwnedRecord;
+use Nvl\Tenancy\Tests\Fixtures\ParentTypesResolver;
 use Nvl\Tenancy\Tests\Fixtures\PolymorphicRecord;
 use Nvl\Tenancy\ValueObjects\TenantResourceDefinition;
 
@@ -232,4 +233,40 @@ it('rejects a polymorphic child family override that contradicts its allowlisted
     app(TenantResourceRegistry::class)->registerParentResolver('children.records', AllowedParentResolver::class);
     config()->set('tenancy.resources.children', 'platform');
     expect(fn () => app(TenantOwnershipConfiguration::class)->validate())->toThrow(TenantConfigurationInvalid::class);
+});
+
+it('derives polymorphic child ownership recursively without a redundant child override', function (string $mode): void {
+    $registry = new TenantResourceRegistry;
+    app()->instance(TenantResourceRegistry::class, $registry);
+    $registry->register(new TenantResourceDefinition('tests.records', 'tests', OwnedRecord::class, allowsPlatformRows: true));
+    $registry->register(new TenantResourceDefinition('parents.records', 'parents', InheritedRecord::class, TenantResourceKind::Inherited, 'tests.records', 'parent'));
+    $registry->register(new TenantResourceDefinition('children.records', 'children', PolymorphicRecord::class, TenantResourceKind::Inherited, parentRelation: 'owner'));
+    $registry->registerParentResolver('children.records', ParentTypesResolver::class);
+    app()->instance(ParentTypesResolver::class, new ParentTypesResolver(['parent' => InheritedRecord::class]));
+    $registry->requireCompatible('children', 'tests');
+    config()->set('tenancy.resources.tests', $mode);
+    expect(config('tenancy.resources.children'))->toBeNull()
+        ->and(app(TenantOwnershipConfiguration::class)->mode($registry->get('children.records')))->toBe($mode)
+        ->and(app(TenantOwnershipConfiguration::class)->validate())->toBeNull();
+})->with(['tenant', 'platform']);
+
+it('rejects contradictory polymorphic parent modes before a child override can select one', function (?string $override): void {
+    $registry = app(TenantResourceRegistry::class);
+    $registry->register(new TenantResourceDefinition('platform.records', 'platform_roots', InheritedRecord::class, allowsPlatformRows: true));
+    $registry->register(new TenantResourceDefinition('children.records', 'children', PolymorphicRecord::class, TenantResourceKind::Inherited, parentRelation: 'owner'));
+    $registry->registerParentResolver('children.records', ParentTypesResolver::class);
+    app()->instance(ParentTypesResolver::class, new ParentTypesResolver(['tenant' => OwnedRecord::class, 'platform' => InheritedRecord::class]));
+    config()->set('tenancy.resources.platform_roots', 'platform');
+    if ($override !== null) {
+        config()->set('tenancy.resources.children', $override);
+    }
+    expect(fn () => app(TenantOwnershipConfiguration::class)->mode($registry->get('children.records')))->toThrow(TenantConfigurationInvalid::class);
+})->with([null, 'tenant', 'platform']);
+
+it('rejects recursive polymorphic ownership cycles with a configuration error', function (): void {
+    $registry = app(TenantResourceRegistry::class);
+    $registry->register(new TenantResourceDefinition('children.records', 'children', PolymorphicRecord::class, TenantResourceKind::Inherited, parentRelation: 'owner'));
+    $registry->registerParentResolver('children.records', ParentTypesResolver::class);
+    app()->instance(ParentTypesResolver::class, new ParentTypesResolver(['self' => PolymorphicRecord::class]));
+    expect(fn () => app(TenantOwnershipConfiguration::class)->mode($registry->get('children.records')))->toThrow(TenantConfigurationInvalid::class);
 });

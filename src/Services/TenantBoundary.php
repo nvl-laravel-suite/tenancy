@@ -41,6 +41,7 @@ final readonly class TenantBoundary
     {
         $definition = $this->registry()->get($resource);
         $this->assertModel($query->getModel(), $definition);
+        $this->assertQueryStorage($query);
         $snapshot = $this->admit($definition);
         if ($snapshot === null) {
             return $query;
@@ -78,7 +79,7 @@ final readonly class TenantBoundary
         }
         $attributes = ['tenant_id' => $snapshot->tenantId?->value];
         if ($definition->allowsPlatformCatalog || $definition->allowsPlatformRows) {
-            $attributes['ownership_key'] = $snapshot->mode === TenantContextMode::Tenant ? 'tenant' : 'platform';
+            $attributes['ownership_key'] = $this->ownershipKey($snapshot);
         }
 
         return $attributes;
@@ -153,6 +154,12 @@ final readonly class TenantBoundary
         }
     }
 
+    /** Encode a portable mixed-table partition identity using the canonical tenant UUID. */
+    private function ownershipKey(TenantContextSnapshot $snapshot): string
+    {
+        return $snapshot->tenantId === null ? 'platform' : 'tenant:'.$snapshot->tenantId->value;
+    }
+
     /** Require the registered concrete model, canonical table and canonical Laravel connection instance. */
     private function assertModel(Model $model, TenantResourceDefinition $resource): void
     {
@@ -160,6 +167,24 @@ final readonly class TenantBoundary
         if ($model::class !== $resource->model || $model->getTable() !== $canonical->getTable()
             || $model->getConnection() !== $canonical->getConnection()) {
             throw new TenantBoundaryViolation('The record does not match the registered resource storage.');
+        }
+    }
+
+    /**
+     * Validate actual SQL storage before installation admission or disabled compatibility.
+     *
+     * @template T of Model
+     *
+     * @param  Builder<T>  $query
+     */
+    private function assertQueryStorage(Builder $query): void
+    {
+        $base = $query->getQuery();
+        if ($base->getConnection() !== $query->getModel()->getConnection()) {
+            throw new TenantBoundaryViolation('The SQL builder does not use the registered resource connection.');
+        }
+        if ($base->unions !== null || $base->from !== $query->getModel()->getTable()) {
+            throw new TenantBoundaryViolation('Ownership queries require their canonical table without unions.');
         }
     }
 
@@ -178,10 +203,8 @@ final readonly class TenantBoundary
         }
         $visited[] = $resource->key;
         $this->assertMode($resource, $snapshot);
+        $this->assertQueryStorage($query);
         $base = $query->getQuery();
-        if ($base->unions !== null || $base->from !== $query->getModel()->getTable()) {
-            throw new TenantBoundaryViolation('Ownership queries require their canonical table without unions.');
-        }
         if ($base->wheres !== []) {
             $nested = $base->forNestedWhere();
             $nested->wheres = $base->wheres;
@@ -192,7 +215,7 @@ final readonly class TenantBoundary
         }
         $query->where($query->qualifyColumn('tenant_id'), $snapshot->tenantId?->value);
         if ($resource->allowsPlatformCatalog || $resource->allowsPlatformRows) {
-            $query->where($query->qualifyColumn('ownership_key'), $snapshot->mode === TenantContextMode::Tenant ? 'tenant' : 'platform');
+            $query->where($query->qualifyColumn('ownership_key'), $this->ownershipKey($snapshot));
         }
         if ($resource->kind === TenantResourceKind::Inherited) {
             $relation = $this->parentRelation($resource);
@@ -245,7 +268,7 @@ final readonly class TenantBoundary
         $facts = $record->getConnection()->table($record->getTable())->where($record->getKeyName(), $key)->first(array_unique($columns));
         if ($facts === null || $facts->tenant_id !== $snapshot->tenantId?->value
             || (($resource->allowsPlatformCatalog || $resource->allowsPlatformRows)
-                && $facts->ownership_key !== ($snapshot->mode === TenantContextMode::Tenant ? 'tenant' : 'platform'))) {
+                && $facts->ownership_key !== $this->ownershipKey($snapshot))) {
             throw new TenantBoundaryViolation;
         }
         if ($relation !== null) {
