@@ -56,3 +56,27 @@ Run focused package tests serially, then Pint, package PHPStan, package-family
 validation, root configuration/module tests, Composer validation, and public
 contract checks. Prove disabled compatibility without loading Tenancy migrations,
 then prove the separately enabled core migration on the configured connection.
+
+## Explicit adoption protocol
+
+Use `TenantAdoptionCoordinator` and registered real package adapters for all
+installation transitions. Do not fabricate active markers in downstream fixtures.
+Use direct Testbench `Illuminate\Foundation\Testing\DatabaseMigrations`, not an outer transaction. Stream reviewed
+JSONL assignments; validate nonempty metadata through the optional
+`TenantAdoptionMetadataValidator` interface before preparation. Adapters own exact
+metadata fields, canonical SQL/DDL, parent validation and idempotent constraints;
+zero-resource adapters remain supported.
+
+Each mutation needs actual maintenance, fresh host authorization and durable audit.
+Actor CLI fields and plan UUIDs are not authorization. Resume immutable inputs; never
+overwrite mapping hashes or supersede interrupted prepared runs. Verified active
+graphs may enter a new explicitly reviewed structural adoption that preserves prior
+history; adapters must reject tenant transfers and unsupported structural changes.
+`verify` and Doctor are read-only; activation rechecks actual storage. Keep database
+bootstrap overrides disabled in the maintenance command environment until activation,
+then restore validated configuration, rebuild caches and restart drained processes.
+
+Internal callback scopes identify run/adapter/phase but grant no ordinary boundary
+access or tenant recovery lease. Queue, after-response, deferred and background
+publication must remain fenced. Native connection locks span DDL/checkpoints; no
+reconnect or session swap is allowed. SQLite file locks require local storage.

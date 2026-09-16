@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Nvl\Tenancy\Services;
 
 use Closure;
-use Illuminate\Bus\Dispatcher as NativeDispatcher;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Bus\Dispatcher as DispatcherContract;
 use Illuminate\Contracts\Config\Repository;
@@ -16,7 +15,6 @@ use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
 use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
 use Nvl\Tenancy\ValueObjects\PlatformOperation;
 use Nvl\Tenancy\ValueObjects\TenantId;
-use ReflectionProperty;
 
 /** Runs authorized synchronous recovery for one existing tenant during maintenance. */
 final readonly class TenantMaintenanceRunner
@@ -52,42 +50,12 @@ final readonly class TenantMaintenanceRunner
         }
         $this->container->make(TenantOperationRecorder::class)->record($operation);
 
-        return $this->withoutResponseDeferral(
+        return $this->container->make(TenantSynchronousCallbacks::class)->run(
             $this->container->make(DispatcherContract::class),
             fn (): mixed => $this->container->make(TenantMaintenanceLease::class)->during(
                 $tenant,
                 fn (): mixed => $this->container->make(TenantRunner::class)->run($tenant, $callback),
             ),
         );
-    }
-
-    /**
-     * Fence native response dispatch so the active lease rejects it before it can be deferred.
-     *
-     * @template T
-     *
-     * @param  Closure(): T  $callback
-     * @return T
-     */
-    private function withoutResponseDeferral(DispatcherContract $dispatcher, Closure $callback): mixed
-    {
-        if (! $dispatcher instanceof NativeDispatcher || $dispatcher::class !== NativeDispatcher::class) {
-            throw new TenantConfigurationInvalid('Tenant maintenance requires the native Laravel bus dispatcher for response dispatch fencing.');
-        }
-        $flag = new ReflectionProperty(NativeDispatcher::class, 'allowsDispatchingAfterResponses');
-        $previous = $flag->getValue($dispatcher);
-        if (! is_bool($previous)) {
-            throw new TenantConfigurationInvalid('The native bus dispatcher response deferral setting must be boolean.');
-        }
-        $dispatcher->withoutDispatchingAfterResponses();
-        try {
-            return $callback();
-        } finally {
-            if ($previous) {
-                $dispatcher->withDispatchingAfterResponses();
-            } else {
-                $dispatcher->withoutDispatchingAfterResponses();
-            }
-        }
     }
 }

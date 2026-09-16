@@ -18,3 +18,13 @@ loaded relationships and dirty attributes are not authorization evidence. Existi
 adoption markers remain mandatory when a feature is disabled or the configured
 core store changes. Marker cache invalidation is internal adoption infrastructure,
 and all other worker processes must restart at cutover.
+
+Adoption requires authenticated host platform authorization and actual application
+maintenance, with durable audits before mutations. CLI actor fields confer no
+authority. Immutable mapping/configuration fingerprints are checked on resumption
+and before phase checkpoints. Prepared graphs remain blocked through partial DDL;
+only a fully verified graph becomes active. Adapters preserve existing ownership
+and reject unsupported re-adoption; this protocol is not a tenant-transfer API.
+No adoption callback may publish queue, after-response, deferred or background work.
+Drain and restart other processes at cutover; local lock/probe state cannot replace
+that operational boundary. Local SQLite file locks require a local filesystem.

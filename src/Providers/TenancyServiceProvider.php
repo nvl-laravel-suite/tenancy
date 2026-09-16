@@ -12,6 +12,8 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Defer\DeferredCallbackCollection;
 use Illuminate\Support\ServiceProvider;
 use Nvl\Support\Traits\MergesPackageConfiguration;
+use Nvl\Tenancy\Console\Commands\TenancyAdoptCommand;
+use Nvl\Tenancy\Console\Commands\TenancyDoctorCommand;
 use Nvl\Tenancy\Contracts\PlatformAccess;
 use Nvl\Tenancy\Contracts\TenantContext;
 use Nvl\Tenancy\Contracts\TenantDirectory;
@@ -28,6 +30,8 @@ use Nvl\Tenancy\Services\DenyTenantMembershipAccess;
 use Nvl\Tenancy\Services\PackageTenantDirectory;
 use Nvl\Tenancy\Services\ScopedTenantContext;
 use Nvl\Tenancy\Services\TenancyConfiguration;
+use Nvl\Tenancy\Services\TenantAdoptionRegistry;
+use Nvl\Tenancy\Services\TenantAdoptionScope;
 use Nvl\Tenancy\Services\TenantContextParticipants;
 use Nvl\Tenancy\Services\TenantInstallationState;
 use Nvl\Tenancy\Services\TenantMaintenanceLease;
@@ -53,6 +57,7 @@ final class TenancyServiceProvider extends ServiceProvider
         $this->app->booted(fn () => $this->app->make(TenantOwnershipConfiguration::class)->validate());
         $this->registerConfiguredAdapters();
         $this->registerMigrations();
+        $this->commands([TenancyAdoptCommand::class, TenancyDoctorCommand::class]);
         $this->callAfterResolving(Kernel::class, static function (Kernel $kernel): void {
             $kernel->addToMiddlewarePriorityBefore(SubstituteBindings::class, RequireTenantMembership::class);
             $kernel->addToMiddlewarePriorityBefore(SubstituteBindings::class, ResolvePublicTenant::class);
@@ -75,10 +80,12 @@ final class TenancyServiceProvider extends ServiceProvider
         $this->mergePackageConfiguration(__DIR__.'/../../config/tenancy.php', 'tenancy');
         $this->app->singleton(TenancyConfiguration::class);
         $this->app->singleton(TenantResourceRegistry::class);
+        $this->app->singleton(TenantAdoptionRegistry::class);
         $this->app->scoped(TenantInstallationState::class);
         $this->app->scopedIf(ScopedTenantContext::class);
         $this->app->scopedIf(TenantContext::class, static fn (Container $app): ScopedTenantContext => $app->make(ScopedTenantContext::class));
         $this->app->scopedIf(TenantMaintenanceLease::class);
+        $this->app->scopedIf(TenantAdoptionScope::class);
         $this->app->singleton(TenantContextParticipants::class);
         $this->registerFallbackAdapters();
         $this->app->bindIf(TenantSiteContext::class, static function (Container $app): TenantSiteContext {
@@ -95,6 +102,7 @@ final class TenancyServiceProvider extends ServiceProvider
         foreach ([QueueFactory::class, DeferredCallbackCollection::class] as $dispatchBoundary) {
             $this->app->beforeResolving($dispatchBoundary, static function (): void {
                 Container::getInstance()->make(TenantMaintenanceLease::class)->assertQueueAllowed();
+                Container::getInstance()->make(TenantAdoptionScope::class)->assertQueueAllowed();
             });
         }
         TenantMaintenanceQueueGuard::register();

@@ -6,6 +6,12 @@ All notable changes to `nvl/tenancy` are documented here.
 
 ### Added
 
+- Added explicit resumable adoption with immutable streamed mappings, package-owned
+  metadata validation, connection-wide process locks, durable phase audits, real
+  adapter DDL/checkpoints and atomic active markers.
+- Added read-only Tenancy Doctor and authorized adoption CLI commands, Suite
+  diagnostics integration, and synchronous adoption publication fences.
+
 - Added the inert-by-default Laravel 13 package, frozen configuration contract,
   scoped read-only context, canonical tenant IDs, adapter interfaces, and stable
   transport-neutral failure codes.

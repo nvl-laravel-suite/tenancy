@@ -35,6 +35,10 @@ abstract class TenantMaintenanceQueueGuard extends Queue
             $app->make(TenantMaintenanceLease::class)->assertQueueAllowed();
         }
 
+        if ($app->bound(TenantAdoptionScope::class)) {
+            $app->make(TenantAdoptionScope::class)->assertQueueAllowed();
+        }
+
         return [];
     }
 }

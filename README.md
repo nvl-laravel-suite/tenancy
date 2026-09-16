@@ -242,12 +242,124 @@ used by these boundaries. It does not adopt any domain package or make its queri
 tenant-safe; each integration still requires its own later resource schema,
 predicates, writes, adoption adapter, diagnostics, and acceptance tests.
 
+## Explicit resumable adoption
+
+Each participating package registers its `TenantAdoptionAdapter` class with
+`TenantAdoptionRegistry::register(package, adapter)`. The coordinator resolves
+canonical parent/family dependency closure, checks that every participating model
+uses the **same Laravel Connection object** as the core store, and orders adapter
+work before any schema transition. An adapter may legitimately return no resources
+(for example a manifest-only integration); it still has immutable run input and
+persisted phase checkpoints. Registration does not make any downstream package
+tenant-safe by itself.
+
+### Reviewed mapping input
+
+The command streams JSONL. Every line has `resource`, string `record_id`, canonical
+UUID `tenant_id`, and optional `metadata`:
+
+```json
+{"resource":"example.records","record_id":"record-123","tenant_id":"11111111-1111-4111-8111-111111111111","metadata":{}}
+```
+
+Resource and record IDs are 1–191 characters. Duplicate or conflicting assignments
+fail. Mapping tenants must exist and be active in the effective directory.
+Metadata is canonical bounded JSON (16 KiB, depth 16, 2048 values); it participates
+in the immutable mapping hash. Adapters accepting nonempty metadata also implement
+`TenantAdoptionMetadataValidator::validateAssignment(TenantAssignment): void` and
+reject unknown fields, credentials, row payloads and invalid package references.
+An adapter without this optional interface accepts only empty metadata. Nested
+reviewed destination IDs are allowed; core does not assume every mapped/destination
+record already exists. The owning package validates those semantics before prepare.
+
+Adapters read owners using `TenantAdoptionMappings::tenantFor(plan, resource,
+recordId)`, metadata using `metadataFor(...)`, and stable mapping batches using
+`assignments(plan, resource, afterRecordId, limit)`. Unmapped existing roots fail;
+packages may derive children from validated canonical parents. Both mapping-read
+and backfill limits are 1–10000. Each callback returns an advancing opaque cursor
+or `null` for completion; processed counts cannot exceed the requested limit.
+
+### Operator procedure
+
+1. Take a consistent backup of the affected database, package-owned split ledgers,
+   and external assets. Rehearse restoring it before the maintenance window.
+2. Drain HTTP traffic, queue workers and scheduled jobs, then enable actual Laravel
+   maintenance mode. Install the opt-in core schema explicitly. Use a host
+   `PlatformAccess` adapter that authenticates and authorizes the CLI operator;
+   `--actor-type`, `--actor-id` and `--purpose` identify the audit, not a privilege.
+3. Before schemas become prepared, use a validated maintenance bootstrap with
+   `SETTINGS_CONFIG_OVERRIDES=false` (`settings.overrides.enabled=false`) so Settings
+   cannot derive bootstrap config by reading blocked resources. Build that config
+   cache before preparing, or use an isolated uncached maintenance environment;
+   changing an environment variable does not replace an already cached true value.
+   Keep ordinary request/job guards enabled.
+4. Inspect the read-only report with `php artisan nvl:tenancy:doctor --json`.
+   Suite-compatible `--format=text|json` and `--strict` are also supported. Missing
+   enabled schema or incompatible resources are errors; interrupted runs are warnings
+   that fail in strict mode. Doctor creates no runs, audits or schema.
+5. Prepare the reviewed graph and retain the printed run UUID. For example:
+
+   ```bash
+   php artisan nvl:tenancy:adopt prepare --packages=example --mapping=/secure/reviewed.jsonl --actor-type=operator --actor-id=ops-1 --purpose="reviewed adoption"
+   php artisan nvl:tenancy:adopt backfill --run=RUN_UUID --limit=500 --actor-type=operator --actor-id=ops-1 --purpose="reviewed adoption"
+   php artisan nvl:tenancy:adopt verify --run=RUN_UUID
+   php artisan nvl:tenancy:adopt activate --run=RUN_UUID --actor-type=operator --actor-id=ops-1 --purpose="reviewed adoption"
+   ```
+
+   Repeat backfill until it reports completion. Preparation captures all prepared
+   markers before adapter DDL; partial work therefore remains blocked. Each mutating
+   invocation has fresh authorization, maintenance checks and a durable audit outside
+   callback-owned transactions. Do not wrap the coordinator in an outer transaction.
+6. Activation reruns whole-graph verification, applies every adapter's idempotent
+   final constraints, then commits the active run and all markers together. Restore
+   the validated bootstrap configuration, rebuild configuration caches and restart
+   drained processes before reopening traffic. Local probe invalidation cannot update
+   another process's already loaded cache.
+
+### Recovery and adapter obligations
+
+`resume(runId)` reloads the original immutable packages, mapping and configuration.
+`verify(plan)` is read-only and persists no authorization-free verification flag.
+Activation always rechecks actual storage after its fresh authorization. An
+interrupted prepare, batch or DDL phase retries idempotently; successful DDL may
+already be committed even though no active marker exists. Adapters must revalidate
+actual schema, use stable bounded primary-key batches, preserve existing canonical
+owners, validate parents and tenant status, and install their final constraints.
+This API is not a cross-tenant transfer facility.
+
+Source-data repair consistent with the reviewed mapping may resume the same run.
+Mappings and hashes cannot be rewritten. A prepared graph cannot be superseded;
+wrong reviewed input requires the rehearsed pre-adoption backup recovery and a
+new review. A fully active selected graph may enter a new explicitly authorized
+adoption for supported structural evolution: new prepared markers replace its
+active markers while prior run/mapping history remains intact. Package adapters
+must reject unsupported mode changes and ownership transfers. Core never invents
+splits, copies, memberships or owner flags.
+
+A connection-wide PostgreSQL session advisory lock, MySQL/MariaDB `GET_LOCK`, or
+local SQLite file lock serializes independent processes across audits, DDL and
+checkpoints. Contention fails closed for retry; reconnect/session replacement is
+forbidden until the phase ends. Reads use the locked primary session, with host
+replica routing restored afterward. Unsupported engines and SQLite network filesystems
+are unsupported; in-memory SQLite storage is inherently process-local. The lock
+is not an ordinary-write fence: draining processes and maintaining the application
+maintenance window are mandatory.
+
+The internal adoption scope contains only the run, registered adapter and phase.
+It grants no ordinary boundary access or tenant recovery lease. Synchronous
+canonical package SQL/DDL is the adapter's authority; queue, after-response,
+deferred and background publication is fenced, with host dispatch behavior restored
+in `finally`. Leaked callback transactions are rolled back before the scope clears
+so after-commit publication cannot escape. Tests use `TenancyDatabaseTestCase` directly from Testbench with
+`DatabaseMigrations`, real core migrations and real adapters, never a wrapping
+`RefreshDatabase` transaction or manually fabricated active markers.
+
 ## Security
 
 Tenant IDs are canonical UUIDs. A missing tenant scope fails closed through a
-typed exception. The adoption coordinator and normal queue context
-propagation/restoration remain future foundation work and must not be inferred
-from provider registration or the synchronous recovery guard.
+typed exception. The adoption coordinator only executes explicitly registered package adapters.
+Normal queue context propagation/restoration remains future foundation work and
+must not be inferred from provider registration or synchronous adoption/recovery.
 
 ## Development/verification
 
