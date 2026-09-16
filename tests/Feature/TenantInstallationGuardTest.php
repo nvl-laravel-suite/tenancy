@@ -90,6 +90,27 @@ it('bounds active marker probes independently from tenant status queries', funct
     expect(DB::getQueryLog())->toHaveCount(2);
 });
 
+it('rejects undeclared legacy access when any marker exists on the supplied storage connection', function (): void {
+    $connection = DB::connection();
+
+    expect(app(TenantInstallationState::class)->assertUnadopted($connection))->toBeNull();
+
+    F4InstallationFixture::install();
+
+    expect(fn () => app(TenantInstallationState::class)->assertUnadopted($connection))
+        ->toThrow(TenantSchemaNotReady::class);
+});
+
+it('checks a concrete undeclared resource without resolving the resource registry', function (): void {
+    F4InstallationFixture::install();
+    $installation = app(TenantInstallationState::class);
+    $connection = DB::connection();
+
+    expect($installation->assertUnadopted($connection, 'other.records'))->toBeNull()
+        ->and(fn () => $installation->assertUnadopted($connection, 'tests.records'))
+        ->toThrow(TenantSchemaNotReady::class);
+});
+
 it('keeps resource markers effective after reboot even when core configuration points at an empty store', function (bool $enabled): void {
     $file = tempnam(sys_get_temp_dir(), 'f4-adopted-');
     try {

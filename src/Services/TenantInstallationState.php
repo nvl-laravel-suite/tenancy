@@ -36,19 +36,7 @@ final class TenantInstallationState
         $definition = $this->registry->get($resource);
         $model = new $definition->model;
         $connection = $model->getConnection();
-        if (! $this->markers->offsetExists($connection)) {
-            $markers = [];
-            if ($connection->getSchemaBuilder()->hasTable('nvl_tenancy_installation_state')) {
-                foreach ($connection->table('nvl_tenancy_installation_state')->get() as $marker) {
-                    if (! is_string($marker->resource)) {
-                        throw new TenantSchemaNotReady('The installation marker has an invalid resource key.');
-                    }
-                    $markers[$marker->resource] = $marker;
-                }
-            }
-            $this->markers[$connection] = $markers;
-        }
-        $marker = $this->markers[$connection][$resource] ?? null;
+        $marker = $this->markers($connection)[$resource] ?? null;
         $enabled = $this->configuration->get('tenancy.enabled') === true;
         if ($marker === null && ! $enabled) {
             return;
@@ -62,9 +50,47 @@ final class TenantInstallationState
         }
     }
 
+    /**
+     * Deny legacy access when the supplied canonical storage has an adoption marker.
+     *
+     * @throws TenantSchemaNotReady When any marker, or the requested marker, exists
+     */
+    public function assertUnadopted(Connection $connection, ?string $resource = null): void
+    {
+        $markers = $this->markers($connection);
+
+        if (($resource === null && $markers !== [])
+            || ($resource !== null && array_key_exists($resource, $markers))) {
+            throw new TenantSchemaNotReady('Persisted tenant ownership blocks legacy storage access.');
+        }
+    }
+
     /** Clear local probe state after authorized schema changes; other workers must restart. */
     public function invalidate(): void
     {
         $this->markers = new WeakMap;
+    }
+
+    /**
+     * Return persisted installation markers from the supplied canonical connection.
+     *
+     * @return array<string, stdClass>
+     */
+    private function markers(Connection $connection): array
+    {
+        if (! $this->markers->offsetExists($connection)) {
+            $markers = [];
+            if ($connection->getSchemaBuilder()->hasTable('nvl_tenancy_installation_state')) {
+                foreach ($connection->table('nvl_tenancy_installation_state')->get() as $marker) {
+                    if (! is_string($marker->resource)) {
+                        throw new TenantSchemaNotReady('The installation marker has an invalid resource key.');
+                    }
+                    $markers[$marker->resource] = $marker;
+                }
+            }
+            $this->markers[$connection] = $markers;
+        }
+
+        return $this->markers[$connection];
     }
 }
