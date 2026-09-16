@@ -19,7 +19,7 @@ use Throwable;
  */
 final class TenantAdoptionScope
 {
-    /** @var array{run: string, adapter: class-string<TenantAdoptionAdapter>, phase: string}|null */
+    /** @var array{run: string, adapter: class-string<TenantAdoptionAdapter>|null, phase: string}|null */
     private ?array $invocation = null;
 
     /** Resolve the current host dispatcher at each callback boundary. */
@@ -50,10 +50,34 @@ final class TenantAdoptionScope
      */
     public function during(string $run, string $adapter, string $phase, Closure $callback): mixed
     {
-        if ($this->active()) {
+        $previous = $this->invocation;
+        $insidePreparation = $previous !== null && $previous['phase'] === 'preparation'
+            && $previous['run'] === $run && $phase === 'metadata';
+        if ($previous !== null && ! $insidePreparation) {
             throw new TenantBoundaryViolation('An adoption callback is already active.');
         }
         $this->invocation = compact('run', 'adapter', 'phase');
+        try {
+            return $this->synchronous->run($this->container->make(Dispatcher::class), fn () => $this->balanced($callback, $insidePreparation));
+        } finally {
+            $this->invocation = $previous;
+        }
+    }
+
+    /**
+     * Fence the coordinator-owned ingestion transaction through its commit callback release.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $callback
+     * @return T
+     */
+    public function preparation(string $run, Closure $callback): mixed
+    {
+        if ($this->active()) {
+            throw new TenantBoundaryViolation('An adoption callback is already active.');
+        }
+        $this->invocation = ['run' => $run, 'adapter' => null, 'phase' => 'preparation'];
         try {
             return $this->synchronous->run($this->container->make(Dispatcher::class), fn () => $this->balanced($callback));
         } finally {
@@ -69,12 +93,14 @@ final class TenantAdoptionScope
      * @param  Closure(): T  $callback
      * @return T
      */
-    private function balanced(Closure $callback): mixed
+    private function balanced(Closure $callback, bool $insidePreparation = false): mixed
     {
         $connections = $this->container->make(EffectiveTenantConnection::class);
         $initial = $connections->participating();
-        foreach ($initial as $connection) {
-            if ($connection->transactionLevel() !== 0) {
+        $levels = [];
+        foreach ($initial as $id => $connection) {
+            $levels[$id] = $insidePreparation && $connection === $connections->core() ? 1 : 0;
+            if ($connection->transactionLevel() !== $levels[$id]) {
                 throw new TenantBoundaryViolation('Adoption callbacks require balanced participating transactions.');
             }
         }
@@ -86,13 +112,16 @@ final class TenantAdoptionScope
             throw $exception;
         } finally {
             $cleanup = [];
-            foreach ($initial + $connections->participating() as $connection) {
-                if ($connection->transactionLevel() === 0) {
+            foreach ($initial + $connections->participating() as $id => $connection) {
+                $level = $levels[$id] ?? 0;
+                if ($connection->transactionLevel() === $level) {
                     continue;
                 }
                 $failure ??= new TenantBoundaryViolation('An adoption callback changed its transaction balance.');
                 try {
-                    $connection->rollBack(0);
+                    if ($connection->transactionLevel() > $level) {
+                        $connection->rollBack($level);
+                    }
                 } catch (Throwable $exception) {
                     $cleanup[] = $exception;
                 }

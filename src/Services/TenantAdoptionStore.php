@@ -28,7 +28,7 @@ use Nvl\Tenancy\ValueObjects\TenantId;
 final readonly class TenantAdoptionStore
 {
     /** Resolve canonical storage and the current host directory. */
-    public function __construct(private EffectiveTenantConnection $connections, private Container $container) {}
+    public function __construct(private EffectiveTenantConnection $connections, private Container $container, private TenantAdoptionScope $scope) {}
 
     /** @return Run */
     public function load(string $id): array
@@ -66,7 +66,7 @@ final readonly class TenantAdoptionStore
     public function ingest(string $runId, iterable $assignments, array $graph): string
     {
         foreach ($assignments as $assignment) {
-            $metadata = $this->validateAssignment($assignment, $graph);
+            $metadata = $this->validateAssignment($runId, $assignment, $graph);
             $query = $this->connections->core()->table('nvl_tenancy_adoption_mappings');
             if ((clone $query)->where('run_id', $runId)->where('resource', $assignment->resource)->where('record_id', $assignment->recordId)->exists()) {
                 throw new TenantConfigurationInvalid('Duplicate or conflicting record assignment.');
@@ -101,7 +101,7 @@ final readonly class TenantAdoptionStore
             }
             /** @var array<string, mixed> $metadata */
             $assignment = new TenantAssignment($row->resource, $row->record_id, new TenantId($row->tenant_id), $metadata);
-            $canonical = $this->validateAssignment($assignment, $graph);
+            $canonical = $this->validateAssignment($runId, $assignment, $graph);
             hash_update($hash, json_encode([$row->resource, $row->record_id, $assignment->tenantId->value, $canonical], JSON_THROW_ON_ERROR)."\n");
         }
 
@@ -125,7 +125,7 @@ final readonly class TenantAdoptionStore
      *
      * @param  Graph  $graph
      */
-    private function validateAssignment(TenantAssignment $assignment, array $graph): string
+    private function validateAssignment(string $runId, TenantAssignment $assignment, array $graph): string
     {
         foreach ([$assignment->resource, $assignment->recordId] as $value) {
             if (trim($value) === '' || mb_strlen($value) > 191 || str_contains($value, "\0")) {
@@ -144,7 +144,7 @@ final readonly class TenantAdoptionStore
         }
         $adapter = $graph['adapters'][$owner];
         if ($adapter instanceof TenantAdoptionMetadataValidator) {
-            $adapter->validateAssignment($assignment);
+            $this->scope->during($runId, $adapter::class, 'metadata', fn () => $adapter->validateAssignment($assignment));
         } elseif ($assignment->metadata !== []) {
             throw new TenantConfigurationInvalid('This adoption adapter does not accept metadata.');
         }

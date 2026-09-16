@@ -8,6 +8,7 @@ use Closure;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Foundation\MaintenanceMode;
+use Illuminate\Database\Connection;
 use Illuminate\Support\Str;
 use Nvl\Tenancy\Contracts\PlatformAccess;
 use Nvl\Tenancy\Contracts\TenantAdoptionAdapter;
@@ -18,6 +19,7 @@ use Nvl\Tenancy\ValueObjects\PlatformOperation;
 use Nvl\Tenancy\ValueObjects\TenantAdoptionPlan;
 use Nvl\Tenancy\ValueObjects\TenantAssignment;
 use Nvl\Tenancy\ValueObjects\TenantVerification;
+use PDO;
 
 /**
  * Coordinates authorized, audited, resumable package adoption without transactional DDL assumptions.
@@ -60,24 +62,27 @@ final readonly class TenantAdoptionCoordinator
             foreach ($graph['packages'] as $package) {
                 $checkpoints['adapters'][$package] = ['prepared' => false, 'cursor' => null, 'done' => false, 'activated' => false];
             }
-            $plan = $connection->transaction(function () use ($id, $configurationHash, $graph, $checkpoints, $mappings, $connection): TenantAdoptionPlan {
-                $connection->table('nvl_tenancy_adoption_runs')->insert([
-                    'id' => $id, 'status' => 'prepared', 'mapping_hash' => hash('sha256', ''), 'configuration_hash' => $configurationHash,
-                    'packages' => json_encode($graph['packages'], JSON_THROW_ON_ERROR), 'checkpoints' => json_encode($checkpoints, JSON_THROW_ON_ERROR),
-                    'created_at' => now(), 'updated_at' => now(),
-                ]);
-                $mappingHash = $this->store->ingest($id, $mappings, $graph);
-                $connection->table('nvl_tenancy_adoption_runs')->where('id', $id)->update(['mapping_hash' => $mappingHash]);
-                foreach ($graph['resources'] as $resource) {
-                    $connection->table('nvl_tenancy_installation_state')->updateOrInsert(['resource' => $resource], [
-                        'schema_version' => 1, 'state' => 'prepared', 'configuration_hash' => $this->ownership->fingerprint($resource),
-                        'run_id' => $id, 'created_at' => now(), 'updated_at' => now(),
+            try {
+                $plan = $this->scope->preparation($id, fn () => $connection->transaction(function () use ($id, $configurationHash, $graph, $checkpoints, $mappings, $connection): TenantAdoptionPlan {
+                    $connection->table('nvl_tenancy_adoption_runs')->insert([
+                        'id' => $id, 'status' => 'prepared', 'mapping_hash' => hash('sha256', ''), 'configuration_hash' => $configurationHash,
+                        'packages' => json_encode($graph['packages'], JSON_THROW_ON_ERROR), 'checkpoints' => json_encode($checkpoints, JSON_THROW_ON_ERROR),
+                        'created_at' => now(), 'updated_at' => now(),
                     ]);
-                }
+                    $mappingHash = $this->store->ingest($id, $mappings, $graph);
+                    $connection->table('nvl_tenancy_adoption_runs')->where('id', $id)->update(['mapping_hash' => $mappingHash]);
+                    foreach ($graph['resources'] as $resource) {
+                        $connection->table('nvl_tenancy_installation_state')->updateOrInsert(['resource' => $resource], [
+                            'schema_version' => 1, 'state' => 'prepared', 'configuration_hash' => $this->ownership->fingerprint($resource),
+                            'run_id' => $id, 'created_at' => now(), 'updated_at' => now(),
+                        ]);
+                    }
 
-                return new TenantAdoptionPlan($id, $this->connections->name($connection->getName()), $mappingHash, $configurationHash);
-            });
-            $this->installation->invalidate();
+                    return new TenantAdoptionPlan($id, $this->connections->name($connection->getName()), $mappingHash, $configurationHash);
+                }));
+            } finally {
+                $this->installation->invalidate();
+            }
             $this->prepareAdapters($plan, $graph, $checkpoints);
 
             return $plan;
@@ -125,10 +130,12 @@ final readonly class TenantAdoptionCoordinator
     /** Inspect every package and actual schema without changing checkpoints or authorizing mutation. */
     public function verify(TenantAdoptionPlan $plan): TenantVerification
     {
+        $this->assertTransactionEntry();
+
         return $this->lock->during($this->connections->core(), function () use ($plan): TenantVerification {
             [$run, $graph] = $this->validated($plan);
 
-            return $this->verifyGraph($plan, $run, $graph);
+            return $this->verifyGraph($plan, $run, $graph, false);
         });
     }
 
@@ -154,7 +161,11 @@ final readonly class TenantAdoptionCoordinator
             if (! $this->verifyGraph($plan, [...$run, 'checkpoints' => $checkpoints], $graph)->passed()) {
                 throw new TenantSchemaNotReady('The final adoption schema failed verification.');
             }
-            $this->connections->core()->transaction(function () use ($plan, $checkpoints): void {
+            $connection = $this->connections->core();
+            $pdo = $connection->getPdo();
+            $this->validated($plan);
+            $this->assertCallbackBoundary($connection, $pdo, true, true);
+            $connection->transaction(function () use ($plan, $checkpoints): void {
                 $this->connections->core()->table('nvl_tenancy_installation_state')->where('run_id', $plan->id)->update(['state' => 'active', 'updated_at' => now()]);
                 $this->store->checkpoint($plan->id, 'active', $checkpoints);
             });
@@ -165,6 +176,8 @@ final readonly class TenantAdoptionCoordinator
     /** Reload and validate immutable input without granting permission or performing DDL. */
     public function resume(string $runId): TenantAdoptionPlan
     {
+        $this->assertTransactionEntry();
+
         return $this->lock->during($this->connections->core(), function () use ($runId): TenantAdoptionPlan {
             $plan = $this->store->load($runId)['plan'];
             $this->validated($plan);
@@ -243,7 +256,7 @@ final readonly class TenantAdoptionCoordinator
      * @param  Run  $run
      * @param  Graph  $graph
      */
-    private function verifyGraph(TenantAdoptionPlan $plan, array $run, array $graph): TenantVerification
+    private function verifyGraph(TenantAdoptionPlan $plan, array $run, array $graph, bool $requiresMaintenance = true): TenantVerification
     {
         $errors = [];
         foreach ($graph['adapters'] as $package => $adapter) {
@@ -252,7 +265,7 @@ final readonly class TenantAdoptionCoordinator
 
                 continue;
             }
-            foreach ($this->scope->during($plan->id, $adapter::class, 'verify', fn () => $adapter->verify($plan))->errors as $error) {
+            foreach ($this->invoke($plan, $adapter, 'verify', fn () => $adapter->verify($plan), $requiresMaintenance)->errors as $error) {
                 if (mb_strlen($error) > 255) {
                     throw new TenantConfigurationInvalid('Verification errors must be bounded codes or record identifiers.');
                 }
@@ -274,18 +287,43 @@ final readonly class TenantAdoptionCoordinator
      * @param  Closure(): T  $callback
      * @return T
      */
-    private function invoke(TenantAdoptionPlan $plan, TenantAdoptionAdapter $adapter, string $phase, Closure $callback): mixed
+    private function invoke(TenantAdoptionPlan $plan, TenantAdoptionAdapter $adapter, string $phase, Closure $callback, bool $requiresMaintenance = true): mixed
     {
         $connection = $this->connections->core();
-        $pdo = $connection->getRawPdo();
-        $result = $this->scope->during($plan->id, $adapter::class, $phase, $callback);
-        if ($this->connections->core() !== $connection || $connection->getRawPdo() !== $pdo || $connection->transactionLevel() !== 0
-            || $this->configuration->get('tenancy.enabled') !== true || ! $this->container->make(MaintenanceMode::class)->active()) {
-            throw new TenantBoundaryViolation('The adoption maintenance or connection boundary changed inside an adapter.');
+        $pdo = $connection->getPdo();
+        $enabled = $this->configuration->get('tenancy.enabled') === true;
+        $maintenance = $this->container->make(MaintenanceMode::class)->active();
+        if ($requiresMaintenance && (! $enabled || ! $maintenance)) {
+            throw new TenantBoundaryViolation('Adoption requires enabled tenancy and application maintenance mode.');
         }
         $this->validated($plan);
+        $this->assertCallbackBoundary($connection, $pdo, $enabled, $maintenance);
+        $result = $this->scope->during($plan->id, $adapter::class, $phase, $callback);
+        $this->assertCallbackBoundary($connection, $pdo, $enabled, $maintenance);
+        $this->validated($plan);
+        $this->assertCallbackBoundary($connection, $pdo, $enabled, $maintenance);
 
         return $result;
+    }
+
+    /** Preserve live connection and maintenance state across every package callback. */
+    private function assertCallbackBoundary(Connection $connection, PDO $pdo, bool $enabled, bool $maintenance): void
+    {
+        if ($this->connections->core() !== $connection || $connection->getRawPdo() !== $pdo || $connection->transactionLevel() !== 0
+            || ($this->configuration->get('tenancy.enabled') === true) !== $enabled
+            || $this->container->make(MaintenanceMode::class)->active() !== $maintenance) {
+            throw new TenantBoundaryViolation('The adoption maintenance or connection boundary changed inside an adapter.');
+        }
+    }
+
+    /** Reject caller-owned transactions without changing their state or invoking package code. */
+    private function assertTransactionEntry(): void
+    {
+        foreach ($this->connections->participating() as $connection) {
+            if ($connection->transactionLevel() !== 0) {
+                throw new TenantBoundaryViolation('Adoption cannot enter inside a participating transaction.');
+            }
+        }
     }
 
     /**
@@ -302,11 +340,7 @@ final readonly class TenantAdoptionCoordinator
             throw new TenantBoundaryViolation('Adoption requires enabled tenancy and application maintenance mode.');
         }
         $this->container->make(PlatformAccess::class)->authorize($operation);
-        foreach ($this->connections->participating() as $connection) {
-            if ($connection->transactionLevel() !== 0) {
-                throw new TenantBoundaryViolation('Adoption cannot enter inside a participating transaction.');
-            }
-        }
+        $this->assertTransactionEntry();
 
         return $this->lock->during($this->connections->core(), function () use ($operation, $callback): mixed {
             $this->audit->record($operation);

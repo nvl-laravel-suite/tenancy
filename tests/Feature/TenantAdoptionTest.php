@@ -5,12 +5,14 @@ declare(strict_types=1);
 use Illuminate\Bus\Dispatcher as NativeDispatcher;
 use Illuminate\Contracts\Bus\Dispatcher as DispatcherContract;
 use Illuminate\Contracts\Foundation\MaintenanceMode;
+use Illuminate\Database\Events\TransactionRolledBack;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Defer\DeferredCallbackCollection;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
@@ -600,4 +602,184 @@ it('rejects an effective adapter implementation change when resuming identical r
     };
     app()->instance(EmptyAdoptionAdapter::class, $replacement);
     expect(fn () => $coordinator->resume($plan->id))->toThrow(TenantConfigurationInvalid::class);
+});
+
+it('rejects final verification changes before publishing active markers and preserves prior history', function (string $change): void {
+    $adapter = adoptionAdapter();
+    $tenant = adoptionTenant();
+    DB::table('tenancy_test_records')->insert(['id' => 'a', 'name' => 'a']);
+    $mapping = [new TenantAssignment('tests.records', 'a', $tenant)];
+    $coordinator = app(TenantAdoptionCoordinator::class);
+    $prior = $coordinator->prepare(['tests'], $mapping, adoptionOperation());
+    $coordinator->backfill($prior, 2, adoptionOperation());
+    $coordinator->activate($prior, adoptionOperation());
+    $history = DB::table('nvl_tenancy_adoption_runs')->where('id', $prior->id)->first();
+    $plan = $coordinator->prepare(['tests'], $mapping, adoptionOperation());
+    $coordinator->backfill($plan, 2, adoptionOperation());
+    $calls = 0;
+    $connection = DB::connection();
+    $pdo = $connection->getPdo();
+    $adapter->afterVerify = function () use (&$calls, $change, $plan, $connection): void {
+        if (++$calls !== 2) {
+            return;
+        }
+        match ($change) {
+            'profile' => config(['tenancy.profile' => 'platform']),
+            'input' => DB::table('nvl_tenancy_adoption_mappings')->where('run_id', $plan->id)->update(['record_id' => 'changed']),
+            'maintenance' => app(MaintenanceMode::class)->deactivate(),
+            'session' => $connection->setPdo(new PDO('sqlite::memory:')),
+        };
+    };
+    try {
+        expect(fn () => $coordinator->activate($plan, adoptionOperation()))->toThrow(TenancyException::class);
+    } finally {
+        $connection->setPdo($pdo);
+    }
+    expect($calls)->toBe(2)
+        ->and(DB::table('nvl_tenancy_installation_state')->value('state'))->toBe('prepared')
+        ->and(DB::table('nvl_tenancy_adoption_runs')->where('id', $prior->id)->first())->toEqual($history)
+        ->and(DB::table('nvl_tenancy_adoption_mappings')->where('run_id', $prior->id)->value('record_id'))->toBe('a')
+        ->and(app(TenantAdoptionScope::class)->active())->toBeFalse();
+})->with(['profile', 'input', 'maintenance', 'session']);
+
+it('revalidates standalone verification callbacks while leaving run checkpoints and audits unchanged', function (): void {
+    $adapter = adoptionAdapter();
+    $coordinator = app(TenantAdoptionCoordinator::class);
+    $plan = $coordinator->prepare(['tests'], [], adoptionOperation());
+    $coordinator->backfill($plan, 2, adoptionOperation());
+    $before = DB::table('nvl_tenancy_adoption_runs')->first();
+    $audits = DB::table('nvl_tenancy_operations')->count();
+    $adapter->afterVerify = static fn () => config(['tenancy.profile' => 'platform']);
+    expect(fn () => $coordinator->verify($plan))->toThrow(TenantConfigurationInvalid::class)
+        ->and(DB::table('nvl_tenancy_adoption_runs')->first())->toEqual($before)
+        ->and(DB::table('nvl_tenancy_operations')->count())->toBe($audits);
+});
+
+it('fences metadata validator publication during ingestion and read-only resumption', function (string $phase, string $entry): void {
+    $adapter = adoptionAdapter();
+    $tenant = adoptionTenant();
+    $coordinator = app(TenantAdoptionCoordinator::class);
+    $mapping = [new TenantAssignment('tests.records', 'a', $tenant)];
+    $plan = $phase === 'resume' ? $coordinator->prepare(['tests'], $mapping, adoptionOperation()) : null;
+    $before = DB::table('nvl_tenancy_adoption_runs')->get()->all();
+    $dispatcher = app(DispatcherContract::class);
+    $flag = new ReflectionProperty(NativeDispatcher::class, 'allowsDispatchingAfterResponses');
+    $previous = $flag->getValue($dispatcher);
+    $callbacks = app(DeferredCallbackCollection::class);
+    $queue = Queue::connection('sync');
+    MaintenanceProbeJob::$executions = 0;
+    $depths = [];
+    $adapter->onValidate = function () use ($entry, $dispatcher, $queue, &$depths): void {
+        $depths[] = DB::connection()->transactionLevel();
+        match ($entry) {
+            'defer' => defer(static fn () => MaintenanceProbeJob::$executions++),
+            'after_response' => $dispatcher->dispatchAfterResponse(new MaintenanceProbeJob),
+            'sync' => $queue->push(new MaintenanceProbeJob),
+            'after_commit' => $queue->push((new MaintenanceProbeJob)->afterCommit()),
+        };
+    };
+    try {
+        expect(fn () => $phase === 'prepare'
+            ? $coordinator->prepare(['tests'], $mapping, adoptionOperation())
+            : $coordinator->resume($plan->id))->toThrow(TenantBoundaryViolation::class);
+        expect($depths)->not->toBeEmpty()
+            ->and($depths[0])->toBe($phase === 'prepare' ? 1 : 0)
+            ->and($callbacks)->toHaveCount(0)
+            ->and(app(TenantAdoptionScope::class)->active())->toBeFalse()
+            ->and($flag->getValue($dispatcher))->toBe($previous)
+            ->and(DB::connection()->transactionLevel())->toBe(0);
+        if ($phase === 'resume') {
+            expect(DB::table('nvl_tenancy_adoption_runs')->get()->all())->toEqual($before);
+        }
+        DB::transaction(static fn () => null);
+        $this->app->terminate();
+        expect(MaintenanceProbeJob::$executions)->toBe(0);
+        Queue::push(new MaintenanceProbeJob);
+        expect(MaintenanceProbeJob::$executions)->toBe(1);
+    } finally {
+        while (count($callbacks) > 0) {
+            $callbacks->forget($callbacks->first()->name);
+        }
+    }
+})->with(['prepare', 'resume'])->with(['defer', 'after_response', 'sync', 'after_commit']);
+
+it('rejects read-only adoption entry inside host transactions without rolling back host state', function (string $entry): void {
+    $adapter = adoptionAdapter();
+    $coordinator = app(TenantAdoptionCoordinator::class);
+    $plan = $coordinator->prepare(['tests'], [new TenantAssignment('tests.records', 'a', adoptionTenant())], adoptionOperation());
+    $calls = 0;
+    $adapter->onValidate = static function () use (&$calls): void {
+        $calls++;
+    };
+    config(['database.connections.host' => config('database.connections.sqlite')]);
+    $host = DB::connection('host');
+    $host->statement('CREATE TABLE host_state (value TEXT)');
+    $host->beginTransaction();
+    $host->table('host_state')->insert(['value' => 'preserve']);
+    try {
+        expect(fn () => $entry === 'resume' ? $coordinator->resume($plan->id) : $coordinator->verify($plan))->toThrow(TenantBoundaryViolation::class)
+            ->and($calls)->toBe(0)
+            ->and($host->transactionLevel())->toBe(1)
+            ->and($host->table('host_state')->value('value'))->toBe('preserve');
+    } finally {
+        $host->rollBack();
+    }
+})->with(['resume', 'verify']);
+
+it('invalidates primed probes when fenced ingestion commit callbacks fail after prepared markers persist', function (string $initial): void {
+    $adapter = adoptionAdapter();
+    $coordinator = app(TenantAdoptionCoordinator::class);
+    $tenant = adoptionTenant();
+    $mapping = [new TenantAssignment('tests.records', 'a', $tenant)];
+    if ($initial === 'active') {
+        $first = $coordinator->prepare(['tests'], $mapping, adoptionOperation());
+        $coordinator->backfill($first, 2, adoptionOperation());
+        $coordinator->activate($first, adoptionOperation());
+    } else {
+        config(['tenancy.enabled' => false]);
+    }
+    $installation = app(TenantInstallationState::class);
+    $installation->assertUsable('tests.records');
+    config(['tenancy.enabled' => true]);
+    $queue = Queue::connection('sync');
+    $adapter->onValidate = static fn () => $queue->push((new MaintenanceProbeJob)->afterCommit());
+    expect(fn () => $coordinator->prepare(['tests'], $mapping, adoptionOperation()))->toThrow(TenantBoundaryViolation::class)
+        ->and(DB::table('nvl_tenancy_installation_state')->value('state'))->toBe('prepared');
+    if ($initial === 'legacy') {
+        config(['tenancy.enabled' => false]);
+    }
+    expect(fn () => $installation->assertUsable('tests.records'))->toThrow(TenantSchemaNotReady::class);
+})->with(['active', 'legacy']);
+
+it('allows read-only verification without maintenance authorization or persisted state changes', function (): void {
+    adoptionAdapter();
+    $coordinator = app(TenantAdoptionCoordinator::class);
+    $plan = $coordinator->prepare(['tests'], [], adoptionOperation());
+    $coordinator->backfill($plan, 2, adoptionOperation());
+    $before = DB::table('nvl_tenancy_adoption_runs')->first();
+    $audits = DB::table('nvl_tenancy_operations')->count();
+    app(MaintenanceMode::class)->deactivate();
+    app()->bind(PlatformAccess::class, DenyPlatformAccess::class);
+    expect($coordinator->verify($plan)->passed())->toBeTrue()
+        ->and(DB::table('nvl_tenancy_adoption_runs')->first())->toEqual($before)
+        ->and(DB::table('nvl_tenancy_operations')->count())->toBe($audits);
+});
+
+it('unwinds only leaked metadata transaction levels before the coordinator rolls back its own transaction', function (): void {
+    $adapter = adoptionAdapter();
+    $levels = [];
+    Event::listen(TransactionRolledBack::class, static function (TransactionRolledBack $event) use (&$levels): void {
+        $levels[] = $event->connection->transactionLevel();
+    });
+    $adapter->onValidate = static function (): never {
+        expect(DB::connection()->transactionLevel())->toBe(1)
+            ->and(app(TenantAdoptionScope::class)->active())->toBeTrue();
+        DB::beginTransaction();
+        throw new RuntimeException('original metadata failure');
+    };
+    expect(fn () => app(TenantAdoptionCoordinator::class)->prepare(['tests'], [new TenantAssignment('tests.records', 'a', adoptionTenant())], adoptionOperation()))->toThrow(RuntimeException::class, 'original metadata failure')
+        ->and($levels)->toBe([1, 0])
+        ->and(DB::table('nvl_tenancy_adoption_runs')->count())->toBe(0)
+        ->and(DB::table('nvl_tenancy_operations')->count())->toBe(1)
+        ->and(app(TenantAdoptionScope::class)->active())->toBeFalse();
 });

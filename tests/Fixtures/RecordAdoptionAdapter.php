@@ -33,6 +33,12 @@ class RecordAdoptionAdapter implements TenantAdoptionAdapter, TenantAdoptionMeta
     /** @var Closure(): void|null */
     public ?Closure $afterActivate = null;
 
+    /** @var Closure(): void|null */
+    public ?Closure $afterVerify = null;
+
+    /** @var Closure(): void|null */
+    public ?Closure $onValidate = null;
+
     /** Create package-owned canonical storage access. */
     public function __construct(private DatabaseManager $database, private TenantAdoptionMappings $mappings, private TenantDirectory $directory) {}
 
@@ -45,6 +51,7 @@ class RecordAdoptionAdapter implements TenantAdoptionAdapter, TenantAdoptionMeta
     /** Validate the exact fixture destination-ID metadata without assuming the destination exists. */
     public function validateAssignment(TenantAssignment $assignment): void
     {
+        ($this->onValidate ?? static function (): void {})();
         if ($assignment->metadata === []) {
             return;
         }
@@ -118,6 +125,8 @@ class RecordAdoptionAdapter implements TenantAdoptionAdapter, TenantAdoptionMeta
                 break;
             }
         }
+
+        ($this->afterVerify ?? static function (): void {})();
 
         return new TenantVerification($errors);
     }
