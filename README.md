@@ -125,7 +125,16 @@ queue payload creation is also guarded. A retained sync queue with `afterCommit`
 may defer that rejection until commit attempts payload creation while the lease
 is active. Callback-leaked transactions are rolled back before leaving the lease,
 so their deferred callbacks cannot survive recovery. No lease is added to job
-metadata. Host queue managers, dispatchers, and payload callbacks are preserved.
+metadata. Native Bus `afterResponse` deferral is temporarily disabled during the
+lease so Dispatchable calls and retained dispatchers reach the active queue guard
+immediately. The exact previous host deferral setting is restored on every exit.
+Maintenance requires the native Laravel dispatcher; custom dispatcher types fail
+before callback entry because their deferral behavior cannot be fenced safely.
+Retained native deferred/background queues and generic `defer()` scheduling are
+also rejected before a callback is appended. Existing host deferred callbacks and
+their collection binding remain intact; unused configured drivers do not block
+maintenance. Host queue managers, dispatcher instances, and payload callbacks are
+preserved.
 
 This milestone provides real SQL directory/audit adapters but no production
 migrations or package integrations. Tests use only a disposable audit-table

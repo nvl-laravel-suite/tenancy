@@ -9,6 +9,7 @@ use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Contracts\Queue\Factory as QueueFactory;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Support\Defer\DeferredCallbackCollection;
 use Illuminate\Support\ServiceProvider;
 use Nvl\Support\Traits\MergesPackageConfiguration;
 use Nvl\Tenancy\Contracts\PlatformAccess;
@@ -84,9 +85,11 @@ final class TenancyServiceProvider extends ServiceProvider
 
             return $site;
         });
-        $this->app->beforeResolving(QueueFactory::class, static function (): void {
-            Container::getInstance()->make(TenantMaintenanceLease::class)->assertQueueAllowed();
-        });
+        foreach ([QueueFactory::class, DeferredCallbackCollection::class] as $dispatchBoundary) {
+            $this->app->beforeResolving($dispatchBoundary, static function (): void {
+                Container::getInstance()->make(TenantMaintenanceLease::class)->assertQueueAllowed();
+            });
+        }
         TenantMaintenanceQueueGuard::register();
     }
 

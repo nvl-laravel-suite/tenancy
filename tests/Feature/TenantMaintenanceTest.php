@@ -2,10 +2,16 @@
 
 declare(strict_types=1);
 
+use Illuminate\Bus\Dispatcher as NativeDispatcher;
+use Illuminate\Contracts\Bus\Dispatcher as DispatcherContract;
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Contracts\Foundation\MaintenanceMode;
+use Illuminate\Process\PendingProcess;
+use Illuminate\Support\Defer\DeferredCallbackCollection;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Queue;
 use Nvl\Tenancy\Contracts\PlatformAccess;
 use Nvl\Tenancy\Contracts\TenantContext;
@@ -18,6 +24,7 @@ use Nvl\Tenancy\Exceptions\TenantInactive;
 use Nvl\Tenancy\Exceptions\TenantNotFound;
 use Nvl\Tenancy\Exceptions\TenantSchemaNotReady;
 use Nvl\Tenancy\Services\DenyPlatformAccess;
+use Nvl\Tenancy\Services\TenantContextParticipants;
 use Nvl\Tenancy\Services\TenantMaintenanceLease;
 use Nvl\Tenancy\Services\TenantMaintenanceQueueGuard;
 use Nvl\Tenancy\Services\TenantMaintenanceRunner;
@@ -26,11 +33,14 @@ use Nvl\Tenancy\Services\TenantRunner;
 use Nvl\Tenancy\Tests\Fixtures\ArrayTenantDirectory;
 use Nvl\Tenancy\Tests\Fixtures\MaintenanceProbeJob;
 use Nvl\Tenancy\Tests\Fixtures\TemporaryOperationStore;
+use Nvl\Tenancy\Tests\Fixtures\TestContextParticipant;
 use Nvl\Tenancy\Tests\Fixtures\TestMaintenanceMode;
 use Nvl\Tenancy\Tests\Fixtures\TestPlatformAccess;
 use Nvl\Tenancy\ValueObjects\PlatformOperation;
 use Nvl\Tenancy\ValueObjects\TenantDescriptor;
 use Nvl\Tenancy\ValueObjects\TenantId;
+
+use function Illuminate\Support\defer;
 
 beforeEach(function (): void {
     config()->set('tenancy.enabled', true);
@@ -212,3 +222,161 @@ it('registers a single current-scope queue guard while preserving host callbacks
         $callbacks->setValue(null, $original);
     }
 });
+
+it('fences after-response dispatch and restores the exact host deferral behavior', function (bool $deferred, string $entry): void {
+    TemporaryOperationStore::create();
+    $dispatcher = app(DispatcherContract::class);
+    $deferred ? $dispatcher->withDispatchingAfterResponses() : $dispatcher->withoutDispatchingAfterResponses();
+    $flag = new ReflectionProperty(NativeDispatcher::class, 'allowsDispatchingAfterResponses');
+    $failure = null;
+    try {
+        app(TenantMaintenanceRunner::class)->run($this->tenant, $this->operation, function () use ($dispatcher, $entry): void {
+            if ($entry === 'dispatchable') {
+                MaintenanceProbeJob::dispatch()->afterResponse();
+            } else {
+                $dispatcher->dispatchAfterResponse(new MaintenanceProbeJob);
+            }
+        });
+    } catch (Throwable $exception) {
+        $failure = $exception;
+    }
+    $this->app->terminate();
+    expect(MaintenanceProbeJob::$executions)->toBe(0)
+        ->and($failure)->toBeInstanceOf(TenantBoundaryViolation::class)
+        ->and($flag->getValue($dispatcher))->toBe($deferred)
+        ->and(app(DispatcherContract::class))->toBe($dispatcher)
+        ->and(app(TenantMaintenanceLease::class)->active())->toBeFalse();
+
+    $dispatcher->dispatchAfterResponse(new MaintenanceProbeJob);
+    expect(MaintenanceProbeJob::$executions)->toBe($deferred ? 0 : 1);
+    $this->app->terminate();
+    expect(MaintenanceProbeJob::$executions)->toBe(1);
+})->with([true, false])->with(['dispatchable', 'retained']);
+
+it('preserves the after-response fence through rejected nested recovery and callback failure', function (bool $deferred): void {
+    TemporaryOperationStore::create();
+    $dispatcher = app(DispatcherContract::class);
+    $deferred ? $dispatcher->withDispatchingAfterResponses() : $dispatcher->withoutDispatchingAfterResponses();
+    $flag = new ReflectionProperty(NativeDispatcher::class, 'allowsDispatchingAfterResponses');
+    $runner = app(TenantMaintenanceRunner::class);
+    expect(fn () => $runner->run($this->tenant, $this->operation, function () use ($runner, $dispatcher, $flag): void {
+        expect($flag->getValue($dispatcher))->toBeFalse();
+        expect(fn () => $runner->run($this->tenant, $this->operation, fn () => test()->fail('nested callback')))
+            ->toThrow(TenantBoundaryViolation::class, 'already active');
+        expect($flag->getValue($dispatcher))->toBeFalse();
+        expect(fn () => $dispatcher->dispatchAfterResponse(new MaintenanceProbeJob))
+            ->toThrow(TenantBoundaryViolation::class, 'Queue dispatch');
+        throw new RuntimeException('original maintenance failure');
+    }))->toThrow(RuntimeException::class, 'original maintenance failure');
+    expect($flag->getValue($dispatcher))->toBe($deferred)
+        ->and(app(TenantMaintenanceLease::class)->active())->toBeFalse();
+    $this->app->terminate();
+    expect(MaintenanceProbeJob::$executions)->toBe(0);
+})->with([true, false]);
+
+it('rejects incompatible host dispatchers before entering maintenance work', function (): void {
+    TemporaryOperationStore::create();
+    $dispatcher = Mockery::mock(DispatcherContract::class);
+    app()->instance(DispatcherContract::class, $dispatcher);
+    expect(fn () => app(TenantMaintenanceRunner::class)->run($this->tenant, $this->operation, fn () => test()->fail('entered')))
+        ->toThrow(TenantConfigurationInvalid::class, 'dispatcher');
+    expect(app(DispatcherContract::class))->toBe($dispatcher)
+        ->and(app(TenantMaintenanceLease::class)->active())->toBeFalse();
+});
+
+it('restores the host response deferral setting after successful maintenance', function (bool $deferred): void {
+    TemporaryOperationStore::create();
+    $dispatcher = app(DispatcherContract::class);
+    $deferred ? $dispatcher->withDispatchingAfterResponses() : $dispatcher->withoutDispatchingAfterResponses();
+    $flag = new ReflectionProperty(NativeDispatcher::class, 'allowsDispatchingAfterResponses');
+    $result = app(TenantMaintenanceRunner::class)->run($this->tenant, $this->operation, function () use ($dispatcher, $flag): string {
+        expect($flag->getValue($dispatcher))->toBeFalse();
+
+        return 'completed';
+    });
+    expect($result)->toBe('completed')
+        ->and($flag->getValue($dispatcher))->toBe($deferred)
+        ->and(app(TenantMaintenanceLease::class)->active())->toBeFalse();
+})->with([true, false]);
+
+it('restores the response fence when cleanup reporting throws without replacing the work error', function (bool $deferred): void {
+    TemporaryOperationStore::create();
+    $dispatcher = app(DispatcherContract::class);
+    $deferred ? $dispatcher->withDispatchingAfterResponses() : $dispatcher->withoutDispatchingAfterResponses();
+    $flag = new ReflectionProperty(NativeDispatcher::class, 'allowsDispatchingAfterResponses');
+    $handler = Mockery::mock(ExceptionHandler::class);
+    $handler->shouldReceive('report')->once()->andReturnUsing(function () use ($dispatcher, $flag): never {
+        expect($flag->getValue($dispatcher))->toBeFalse()
+            ->and(app(TenantMaintenanceLease::class)->active())->toBeTrue()
+            ->and(app(TenantContext::class)->snapshot()->mode)->toBe(TenantContextMode::Unresolved);
+        expect(fn () => $dispatcher->dispatchAfterResponse(new MaintenanceProbeJob))
+            ->toThrow(TenantBoundaryViolation::class, 'Queue dispatch');
+        throw new RuntimeException('reporting failed');
+    });
+    app()->instance(ExceptionHandler::class, $handler);
+    app()->instance(TestContextParticipant::class, new TestContextParticipant(fn () => fn () => throw new RuntimeException('cleanup')));
+    app(TenantContextParticipants::class)->register(TestContextParticipant::class);
+    expect(fn () => app(TenantMaintenanceRunner::class)->run($this->tenant, $this->operation, fn () => throw new RuntimeException('original work')))
+        ->toThrow(RuntimeException::class, 'original work');
+    expect($flag->getValue($dispatcher))->toBe($deferred)
+        ->and(app(TenantMaintenanceLease::class)->active())->toBeFalse();
+    $this->app->terminate();
+    expect(MaintenanceProbeJob::$executions)->toBe(0);
+})->with([true, false]);
+
+it('rejects native deferred scheduling before appending to a retained host collection', function (string $entry): void {
+    TemporaryOperationStore::create();
+    config()->set('queue.connections.deferred', ['driver' => 'deferred']);
+    config()->set('queue.connections.background', ['driver' => 'background']);
+    Process::fake();
+    $driver = Queue::connection($entry === 'background' ? 'background' : 'deferred');
+    $callbacks = new DeferredCallbackCollection;
+    app()->instance(DeferredCallbackCollection::class, $callbacks);
+    $hostCalls = new ArrayObject;
+    defer(function () use ($hostCalls): void {
+        $hostCalls[] = 'existing';
+    }, 'host-existing');
+    expect(app(DeferredCallbackCollection::class))->toBe($callbacks);
+    $failure = null;
+    try {
+        try {
+            app(TenantMaintenanceRunner::class)->run($this->tenant, $this->operation, function () use ($driver, $entry): void {
+                if ($entry === 'helper') {
+                    defer(fn () => test()->fail('maintenance deferred callback escaped'));
+                } else {
+                    $driver->push(new MaintenanceProbeJob);
+                }
+            });
+        } catch (Throwable $exception) {
+            $failure = $exception;
+        }
+        expect($callbacks)->toHaveCount(1)
+            ->and($failure)->toBeInstanceOf(TenantBoundaryViolation::class)
+            ->and(app(DeferredCallbackCollection::class))->toBe($callbacks);
+        $callbacks->invoke();
+        expect((array) $hostCalls)->toBe(['existing'])
+            ->and(MaintenanceProbeJob::$executions)->toBe(0);
+        Process::assertNothingRan();
+
+        if ($entry === 'helper') {
+            defer(function () use ($hostCalls): void {
+                $hostCalls[] = 'after';
+            });
+        } else {
+            $driver->push(new MaintenanceProbeJob);
+        }
+        expect($callbacks)->toHaveCount(1);
+        $callbacks->invoke();
+        if ($entry === 'background') {
+            Process::assertRan(fn (PendingProcess $process): bool => str_contains($process->command, 'invoke-serialized-closure'));
+        } elseif ($entry === 'deferred') {
+            expect(MaintenanceProbeJob::$executions)->toBe(1);
+        } else {
+            expect((array) $hostCalls)->toBe(['existing', 'after']);
+        }
+    } finally {
+        while (count($callbacks) > 0) {
+            $callbacks->forget($callbacks->first()->name);
+        }
+    }
+})->with(['deferred', 'background', 'helper']);
