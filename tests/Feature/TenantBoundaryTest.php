@@ -191,14 +191,14 @@ it('derives inherited ownership from the canonical parent and rejects forged chi
     });
 });
 
-it('requires the package morph allowlist before canonical owner construction and registry lookup', function (): void {
+it('scopes a string polymorphic identity against UUID parents through the package allowlist', function (): void {
     app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('tests.poly', 'tests', PolymorphicRecord::class, TenantResourceKind::Inherited, parentRelation: 'owner'));
     app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('tests.disallowed', 'other', InheritedRecord::class));
     app(TenantResourceRegistry::class)->registerParentResolver('tests.poly', AllowedParentResolver::class);
     Schema::create('tenancy_test_polymorphic', function (Blueprint $table): void {
         $table->uuid('id')->primary();
         $table->uuid('tenant_id');
-        $table->uuid('owner_id');
+        $table->string('owner_id');
         $table->string('owner_type');
         $table->string('name');
         $table->softDeletes();

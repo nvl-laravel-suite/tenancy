@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Database\Query\Expression;
 use Nvl\Tenancy\Contracts\TenantContext;
 use Nvl\Tenancy\Contracts\TenantDirectory;
 use Nvl\Tenancy\Enums\TenantContextMode;
@@ -234,12 +235,29 @@ final readonly class TenantBoundary
                     $group->orWhere(function (Builder $branch) use ($relation, $parentQuery, $type): void {
                         if ($relation instanceof MorphTo) {
                             $branch->where($branch->qualifyColumn($relation->getMorphType()), $type);
+                            $foreignKey = $branch->qualifyColumn($relation->getForeignKeyName());
+                            $ownerKey = $parentQuery->qualifyColumn($relation->getOwnerKeyName() ?: $parentQuery->getModel()->getKeyName());
+                            $branch->whereIn(
+                                $this->textIdentity($branch, $foreignKey),
+                                $parentQuery->select($this->textIdentity($parentQuery, $ownerKey)),
+                            );
+
+                            return;
                         }
                         $branch->whereIn($branch->qualifyColumn($relation->getForeignKeyName()), $parentQuery->select($parentQuery->qualifyColumn($relation->getOwnerKeyName() ?: $parentQuery->getModel()->getKeyName())));
                     });
                 }
             });
         }
+    }
+
+    /** Cast polymorphic identities to their portable persisted string representation. */
+    private function textIdentity(Builder $query, string $column): Expression
+    {
+        $wrapped = $query->getQuery()->getGrammar()->wrap($column);
+        $type = $query->getConnection()->getDriverName() === 'mysql' ? 'CHAR' : 'TEXT';
+
+        return new Expression("CAST({$wrapped} AS {$type})");
     }
 
     /**
