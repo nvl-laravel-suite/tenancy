@@ -6,12 +6,13 @@ namespace Nvl\Tenancy\Services;
 
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Config\Repository;
+use Illuminate\Contracts\Database\Query\Expression;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Database\Query\Expression;
+use Illuminate\Database\Grammar;
 use Nvl\Tenancy\Contracts\TenantContext;
 use Nvl\Tenancy\Contracts\TenantDirectory;
 use Nvl\Tenancy\Enums\TenantContextMode;
@@ -251,13 +252,30 @@ final readonly class TenantBoundary
         }
     }
 
-    /** Cast polymorphic identities to their portable persisted string representation. */
+    /**
+     * Cast polymorphic identities to their portable persisted string representation.
+     *
+     * @template TModel of Model
+     *
+     * @param  Builder<TModel>  $query
+     */
     private function textIdentity(Builder $query, string $column): Expression
     {
         $wrapped = $query->getQuery()->getGrammar()->wrap($column);
-        $type = $query->getConnection()->getDriverName() === 'mysql' ? 'CHAR' : 'TEXT';
+        $type = $query->getModel()->getConnection()->getDriverName() === 'mysql' ? 'CHAR' : 'TEXT';
 
-        return new Expression("CAST({$wrapped} AS {$type})");
+        return new readonly class($wrapped, $type) implements Expression
+        {
+            public function __construct(
+                private string $column,
+                private string $type,
+            ) {}
+
+            public function getValue(Grammar $grammar): string
+            {
+                return "CAST({$this->column} AS {$this->type})";
+            }
+        };
     }
 
     /**
