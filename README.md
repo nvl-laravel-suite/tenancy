@@ -567,3 +567,6 @@ must run in the captured tenant context. Native signed callback payloads receive
 recursive inert model checks while native signature verification remains in place.
 Arbitrary application `__unserialize()` implementations are trusted application code;
 this boundary does not sandbox code hidden inside custom serialized strings.
+
+<!-- tenancy-program-p2 -->
+Configurable-tenancy implementation and adoption documentation are present. The final consolidated verification matrix is pending; do not treat this package as release-ready until that gate passes.

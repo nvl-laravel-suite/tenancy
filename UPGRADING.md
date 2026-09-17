@@ -35,3 +35,6 @@ Installing the five core tables does not adopt any domain package and does not
 make downstream package queries tenant-safe. Keep runtime activation off until
 the remaining foundation and package-specific migrations, boundaries, Doctor
 checks, and acceptance tests are complete.
+
+<!-- tenancy-program-p2 -->
+Configurable-tenancy implementation and adoption documentation are present. The final consolidated verification matrix is pending; do not treat this package as release-ready until that gate passes.

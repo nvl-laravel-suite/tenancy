@@ -28,3 +28,6 @@ and reject unsupported re-adoption; this protocol is not a tenant-transfer API.
 No adoption callback may publish queue, after-response, deferred or background work.
 Drain and restart other processes at cutover; local lock/probe state cannot replace
 that operational boundary. Local SQLite file locks require a local filesystem.
+
+<!-- tenancy-program-p2 -->
+The configurable-tenancy implementation is present; its consolidated verification matrix remains pending and no release-readiness claim is made.

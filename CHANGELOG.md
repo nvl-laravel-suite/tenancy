@@ -45,3 +45,6 @@ All notable changes to `nvl/tenancy` are documented here.
   identity keys, and current-status resource admission.
 - Added per-resource ownership fingerprints and bounded persisted adoption probes
   that reject prepared/incompatible resources and configuration downgrade attempts.
+
+<!-- tenancy-program-p2 -->
+Configurable-tenancy implementation and adoption documentation are present. The final consolidated verification matrix is pending; do not treat this package as release-ready until that gate passes.
