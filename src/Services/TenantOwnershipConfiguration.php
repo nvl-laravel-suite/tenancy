@@ -116,7 +116,9 @@ final readonly class TenantOwnershipConfiguration
         $adapters = $this->container->make(TenantAdoptionRegistry::class)->all();
         $incompatible = [];
         foreach (self::RUNTIME_PROVIDERS as $family => $provider) {
-            if ($this->container->providerIsLoaded($provider) && (($family !== 'csv' && ! isset($families[$family])) || ! isset($adapters[$family]))) {
+            $hasRegisteredFamily = isset($families[$family])
+                || array_any(array_keys($families), static fn (string $registered): bool => str_starts_with($registered, $family.'.'));
+            if ($this->container->providerIsLoaded($provider) && (($family !== 'csv' && ! $hasRegisteredFamily) || ! isset($adapters[$family]))) {
                 $incompatible[] = $family;
             }
         }
