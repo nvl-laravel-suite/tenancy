@@ -33,6 +33,9 @@ abstract class TenancyDatabaseTestCase extends TestCase
         $app['config']->set([
             'database.default' => 'sqlite',
             'database.connections.sqlite.database' => ':memory:',
+            'queue.batching.database' => 'sqlite',
+            'queue.connections.database.connection' => 'sqlite',
+            'queue.failed.database' => 'sqlite',
             'tenancy.enabled' => true,
             'tenancy.migrations.enabled' => true,
         ]);

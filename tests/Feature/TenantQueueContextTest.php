@@ -62,6 +62,9 @@ use Nvl\Tenancy\ValueObjects\TenantResourceDefinition;
 
 beforeEach(function (): void {
     config()->set('tenancy.enabled', true);
+    config()->set('queue.batching.database', 'sqlite');
+    config()->set('queue.connections.database.connection', 'sqlite');
+    config()->set('queue.failed.database', 'sqlite');
     $this->a = new TenantId('10000000-0000-4000-8000-000000000001');
     $this->b = new TenantId('10000000-0000-4000-8000-000000000002');
     app()->instance(TenantDirectory::class, new ArrayTenantDirectory([
