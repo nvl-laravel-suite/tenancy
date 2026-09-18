@@ -165,11 +165,11 @@ final readonly class TenantBoundary
         return $snapshot->tenantId === null ? 'platform' : 'tenant:'.$snapshot->tenantId->value;
     }
 
-    /** Require the registered concrete model, canonical table and canonical Laravel connection instance. */
+    /** Require the registered model lineage, canonical table and canonical Laravel connection instance. */
     private function assertModel(Model $model, TenantResourceDefinition $resource): void
     {
         $canonical = new $resource->model;
-        if ($model::class !== $resource->model || $model->getTable() !== $canonical->getTable()
+        if (! is_a($model, $resource->model) || $model->getTable() !== $canonical->getTable()
             || $model->getConnection() !== $canonical->getConnection()) {
             throw new TenantBoundaryViolation('The record does not match the registered resource storage.');
         }
@@ -188,7 +188,11 @@ final readonly class TenantBoundary
         if ($base->getConnection() !== $query->getModel()->getConnection()) {
             throw new TenantBoundaryViolation('The SQL builder does not use the registered resource connection.');
         }
-        if ($base->unions !== null || $base->from !== $query->getModel()->getTable()) {
+        $table = $query->getModel()->getTable();
+        $from = $base->from;
+        $isCanonicalStorage = $from === $table
+            || (is_string($from) && preg_match('/^'.preg_quote($table, '/').'\s+as\s+laravel_reserved_\d+$/i', $from) === 1);
+        if ($base->unions !== null || ! $isCanonicalStorage) {
             throw new TenantBoundaryViolation('Ownership queries require their canonical table without unions.');
         }
     }
@@ -262,7 +266,11 @@ final readonly class TenantBoundary
     private function textIdentity(Builder $query, string $column): Expression
     {
         $wrapped = $query->getQuery()->getGrammar()->wrap($column);
-        $type = $query->getModel()->getConnection()->getDriverName() === 'mysql' ? 'CHAR' : 'TEXT';
+        $type = in_array(
+            $query->getModel()->getConnection()->getDriverName(),
+            ['mysql', 'mariadb'],
+            true,
+        ) ? 'CHAR' : 'TEXT';
 
         return new readonly class($wrapped, $type) implements Expression
         {

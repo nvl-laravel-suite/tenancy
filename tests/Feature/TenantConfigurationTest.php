@@ -57,6 +57,13 @@ it('preserves deep maps and replaces neutral lists atomically while rejecting re
     expect(fn () => app(TenancyConfiguration::class)->validate())->toThrow(TenantConfigurationInvalid::class, 'class string');
 });
 
+it('rejects an unknown configured core connection alias', function (): void {
+    config()->set('tenancy.connection', 'not-configured');
+
+    expect(fn () => app(TenancyConfiguration::class)->validate())
+        ->toThrow(TenantConfigurationInvalid::class, 'configured Laravel database connection');
+});
+
 it('keeps host directory precedence and validates serializable cached class configuration', function (): void {
     app()->bind(TenantDirectory::class, TestTenantDirectory::class);
     $original = app()->getBindings()[TenantDirectory::class];

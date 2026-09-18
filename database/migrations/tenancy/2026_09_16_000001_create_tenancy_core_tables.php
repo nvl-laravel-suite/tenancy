@@ -7,6 +7,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Schema\Builder;
 use Illuminate\Support\Facades\Schema;
 use Nvl\Tenancy\Contracts\TenantDirectory;
+use Nvl\Tenancy\Definitions\Tables\TenancyTables;
 use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
 use Nvl\Tenancy\Services\PackageTenantDirectory;
 
@@ -29,7 +30,7 @@ return new class extends Migration
     {
         $schema = $this->schema();
 
-        $schema->create('nvl_tenancy_tenants', function (Blueprint $table): void {
+        $schema->create(TenancyTables::Tenants, function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->string('name', 255);
             $table->string('status', 32);
@@ -39,7 +40,7 @@ return new class extends Migration
             $table->index('status', 'nvl_tenancy_tenants_status_idx');
         });
 
-        $schema->create('nvl_tenancy_adoption_runs', function (Blueprint $table): void {
+        $schema->create(TenancyTables::AdoptionRuns, function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->string('status', 32);
             $table->char('mapping_hash', 64);
@@ -52,7 +53,7 @@ return new class extends Migration
             $table->index('mapping_hash', 'nvl_tenancy_adoption_runs_mapping_idx');
         });
 
-        $schema->create('nvl_tenancy_installation_state', function (Blueprint $table): void {
+        $schema->create(TenancyTables::InstallationState, function (Blueprint $table): void {
             $table->string('resource', 191)->primary();
             $table->unsignedInteger('schema_version');
             $table->string('state', 32);
@@ -64,11 +65,11 @@ return new class extends Migration
             $table->index('run_id', 'nvl_tenancy_installation_state_run_idx');
             $table->foreign('run_id', 'nvl_tenancy_installation_state_run_fk')
                 ->references('id')
-                ->on('nvl_tenancy_adoption_runs')
+                ->on(TenancyTables::AdoptionRuns)
                 ->restrictOnDelete();
         });
 
-        $schema->create('nvl_tenancy_operations', function (Blueprint $table): void {
+        $schema->create(TenancyTables::Operations, function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->string('actor_type', 255);
             $table->string('actor_id', 255);
@@ -81,7 +82,7 @@ return new class extends Migration
 
         $packageOwnsDirectory = app(TenantDirectory::class) instanceof PackageTenantDirectory;
 
-        $schema->create('nvl_tenancy_adoption_mappings', function (Blueprint $table) use ($packageOwnsDirectory): void {
+        $schema->create(TenancyTables::AdoptionMappings, function (Blueprint $table) use ($packageOwnsDirectory): void {
             $table->uuid('run_id');
             $table->string('resource', 191);
             $table->string('record_id', 191);
@@ -98,13 +99,13 @@ return new class extends Migration
             );
             $table->foreign('run_id', 'nvl_tenancy_adoption_mappings_run_fk')
                 ->references('id')
-                ->on('nvl_tenancy_adoption_runs')
+                ->on(TenancyTables::AdoptionRuns)
                 ->cascadeOnDelete();
 
             if ($packageOwnsDirectory) {
                 $table->foreign('tenant_id', 'nvl_tenancy_adoption_mappings_tenant_fk')
                     ->references('id')
-                    ->on('nvl_tenancy_tenants')
+                    ->on(TenancyTables::Tenants)
                     ->restrictOnDelete();
             }
         });
@@ -114,11 +115,11 @@ return new class extends Migration
     public function down(): void
     {
         $schema = $this->schema();
-        $schema->dropIfExists('nvl_tenancy_adoption_mappings');
-        $schema->dropIfExists('nvl_tenancy_operations');
-        $schema->dropIfExists('nvl_tenancy_installation_state');
-        $schema->dropIfExists('nvl_tenancy_adoption_runs');
-        $schema->dropIfExists('nvl_tenancy_tenants');
+        $schema->dropIfExists(TenancyTables::AdoptionMappings);
+        $schema->dropIfExists(TenancyTables::Operations);
+        $schema->dropIfExists(TenancyTables::InstallationState);
+        $schema->dropIfExists(TenancyTables::AdoptionRuns);
+        $schema->dropIfExists(TenancyTables::Tenants);
     }
 
     /** Resolve the schema builder for the configured core connection. */

@@ -113,6 +113,18 @@ final class TenantResourceRegistry
         throw new TenantConfigurationInvalid('The model has no registered tenant ownership policy.');
     }
 
+    /** Determine whether an exact concrete model has a registered ownership policy. */
+    public function hasModel(string $model): bool
+    {
+        foreach ($this->resources as $resource) {
+            if ($resource->model === $model) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * Return registered immutable definitions.
      *

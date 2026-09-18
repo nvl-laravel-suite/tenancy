@@ -6,6 +6,7 @@ namespace Nvl\Tenancy\Services;
 
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Database\Connection;
+use Nvl\Tenancy\Definitions\Tables\TenancyTables;
 use Nvl\Tenancy\Exceptions\TenantSchemaNotReady;
 use stdClass;
 use WeakMap;
@@ -80,8 +81,8 @@ final class TenantInstallationState
     {
         if (! $this->markers->offsetExists($connection)) {
             $markers = [];
-            if ($connection->getSchemaBuilder()->hasTable('nvl_tenancy_installation_state')) {
-                foreach ($connection->table('nvl_tenancy_installation_state')->get() as $marker) {
+            if ($connection->getSchemaBuilder()->hasTable(TenancyTables::InstallationState)) {
+                foreach ($connection->table(TenancyTables::InstallationState)->get() as $marker) {
                     if (! is_string($marker->resource)) {
                         throw new TenantSchemaNotReady('The installation marker has an invalid resource key.');
                     }

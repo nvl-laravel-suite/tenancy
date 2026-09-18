@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nvl\Tenancy\Services;
 
 use Nvl\Tenancy\Contracts\TenantDirectory;
+use Nvl\Tenancy\Definitions\Tables\TenancyTables;
 use Nvl\Tenancy\Enums\TenantStatus;
 use Nvl\Tenancy\Exceptions\TenantNotFound;
 use Nvl\Tenancy\Exceptions\TenantSchemaNotReady;
@@ -21,10 +22,10 @@ final readonly class PackageTenantDirectory implements TenantDirectory
     public function find(TenantId $tenant): TenantDescriptor
     {
         $connection = $this->connections->core();
-        if (! $connection->getSchemaBuilder()->hasTable('nvl_tenancy_tenants')) {
+        if (! $connection->getSchemaBuilder()->hasTable(TenancyTables::Tenants)) {
             throw new TenantSchemaNotReady('The tenant directory store is not installed.');
         }
-        $row = $connection->table('nvl_tenancy_tenants')->where('id', $tenant->value)->first(['id', 'status']);
+        $row = $connection->table(TenancyTables::Tenants)->where('id', $tenant->value)->first(['id', 'status']);
         if ($row === null) {
             throw new TenantNotFound;
         }

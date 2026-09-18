@@ -7,6 +7,7 @@ namespace Nvl\Tenancy\Services;
 use Illuminate\Container\Container;
 use Nvl\Tenancy\Contracts\TenantAdoptionMetadataValidator;
 use Nvl\Tenancy\Contracts\TenantDirectory;
+use Nvl\Tenancy\Definitions\Tables\TenancyTables;
 use Nvl\Tenancy\Enums\TenantStatus;
 use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
 use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
@@ -33,7 +34,7 @@ final readonly class TenantAdoptionStore
     /** @return Run */
     public function load(string $id): array
     {
-        $row = $this->connections->core()->table('nvl_tenancy_adoption_runs')->where('id', $id)->first();
+        $row = $this->connections->core()->table(TenancyTables::AdoptionRuns)->where('id', $id)->first();
         if ($row === null || ! is_string($row->mapping_hash) || ! is_string($row->configuration_hash)
             || ! is_string($row->packages) || ! is_string($row->checkpoints) || ! is_string($row->status)) {
             throw new TenantConfigurationInvalid('Unknown or invalid persisted adoption run.');
@@ -67,7 +68,7 @@ final readonly class TenantAdoptionStore
     {
         foreach ($assignments as $assignment) {
             $metadata = $this->validateAssignment($runId, $assignment, $graph);
-            $query = $this->connections->core()->table('nvl_tenancy_adoption_mappings');
+            $query = $this->connections->core()->table(TenancyTables::AdoptionMappings);
             if ((clone $query)->where('run_id', $runId)->where('resource', $assignment->resource)->where('record_id', $assignment->recordId)->exists()) {
                 throw new TenantConfigurationInvalid('Duplicate or conflicting record assignment.');
             }
@@ -91,7 +92,7 @@ final readonly class TenantAdoptionStore
             default => 'resource COLLATE BINARY, record_id COLLATE BINARY',
         };
         $hash = hash_init('sha256');
-        foreach ($connection->table('nvl_tenancy_adoption_mappings')->where('run_id', $runId)->orderByRaw($ordering)->cursor() as $row) {
+        foreach ($connection->table(TenancyTables::AdoptionMappings)->where('run_id', $runId)->orderByRaw($ordering)->cursor() as $row) {
             if (! is_string($row->resource) || ! is_string($row->record_id) || ! is_string($row->tenant_id) || ! is_string($row->metadata)) {
                 throw new TenantConfigurationInvalid('Invalid persisted adoption mapping.');
             }
@@ -115,7 +116,7 @@ final readonly class TenantAdoptionStore
      */
     public function checkpoint(string $id, string $status, array $checkpoints): void
     {
-        $this->connections->core()->table('nvl_tenancy_adoption_runs')->where('id', $id)->update([
+        $this->connections->core()->table(TenancyTables::AdoptionRuns)->where('id', $id)->update([
             'status' => $status, 'checkpoints' => json_encode($checkpoints, JSON_THROW_ON_ERROR), 'updated_at' => now(),
         ]);
     }

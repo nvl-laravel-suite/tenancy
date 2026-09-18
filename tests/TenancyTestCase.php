@@ -35,6 +35,7 @@ abstract class TenancyTestCase extends Orchestra
     {
         $app['config']->set([
             'database.default' => 'sqlite',
+            'database.connections.sqlite.url' => null,
             'database.connections.sqlite.database' => ':memory:',
             'tenancy.enabled' => false,
             'tenancy.migrations.enabled' => false,

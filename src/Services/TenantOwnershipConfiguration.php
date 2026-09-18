@@ -129,10 +129,11 @@ final readonly class TenantOwnershipConfiguration
     /** Reject actual tenant activation while loaded runtime packages lack their integration. */
     public function assertReady(): void
     {
-        $this->validate();
-        if ($this->configuration->get('tenancy.enabled') === true && ($incompatible = $this->incompatibleFamilies()) !== []) {
+        $incompatible = $this->incompatibleFamilies();
+        if ($this->configuration->get('tenancy.enabled') === true && $incompatible !== []) {
             throw new TenantConfigurationInvalid('Loaded runtime packages require tenancy integration: '.implode(', ', $incompatible).'.');
         }
+        $this->validate();
     }
 
     /**
@@ -142,7 +143,11 @@ final readonly class TenantOwnershipConfiguration
      */
     public function inspect(): array
     {
-        $this->validate();
+        $incompatible = $this->incompatibleFamilies();
+        $enabled = $this->configuration->get('tenancy.enabled') === true;
+        if (! $enabled || $incompatible === []) {
+            $this->validate();
+        }
         $resources = [];
         foreach ($this->registry->all() as $key => $resource) {
             $model = new $resource->model;
@@ -151,8 +156,6 @@ final readonly class TenantOwnershipConfiguration
                 'table' => $model->getTable(), 'connection' => $this->connections->name($model->getConnectionName()),
             ];
         }
-        $incompatible = $this->incompatibleFamilies();
-        $enabled = $this->configuration->get('tenancy.enabled') === true;
 
         return [
             'enabled' => $enabled, 'profile' => 'application', 'connection' => $this->connections->core()->getName() ?? '',
@@ -174,13 +177,52 @@ final readonly class TenantOwnershipConfiguration
      */
     public function parentTypes(string $resource): array
     {
+        $types = $this->resolvedParentTypes($resource);
+        foreach ($types as $model) {
+            $this->registry->forModel(new $model);
+        }
+
+        return $types;
+    }
+
+    /**
+     * Resolve and validate the package allowlist without requiring tenancy registrations.
+     *
+     * @return array<string, class-string<Model>>
+     */
+    private function resolvedParentTypes(string $resource): array
+    {
         $resolver = $this->registry->parentResolver($resource);
         $adapter = $this->container->make($resolver);
         if (! $adapter instanceof TenantParentResolver) {
             throw new TenantConfigurationInvalid('The parent resolver binding must implement TenantParentResolver.');
         }
 
-        return $this->validateTypes($adapter->types());
+        return $this->normalizeParentTypes($adapter->types());
+    }
+
+    /**
+     * Validate one dynamically resolved parent allowlist at the configuration boundary.
+     *
+     * @return array<string, class-string<Model>>
+     */
+    private function normalizeParentTypes(mixed $types): array
+    {
+        if (! is_array($types)) {
+            throw new TenantConfigurationInvalid('Canonical parent allowlists require persisted types and concrete models.');
+        }
+
+        $normalized = [];
+        foreach ($types as $type => $model) {
+            if (! is_string($type) || $type === '' || ! is_string($model) || ! is_a($model, Model::class, true)) {
+                throw new TenantConfigurationInvalid('Canonical parent allowlists require persisted types and concrete models.');
+            }
+
+            $normalized[$type] = $model;
+        }
+        ksort($normalized);
+
+        return $normalized;
     }
 
     /** Fingerprint one resource and its ownership dependency closure independently of unrelated packages. */
@@ -246,43 +288,31 @@ final readonly class TenantOwnershipConfiguration
         if ($resource->parentResource !== null) {
             $parents[] = $this->registry->get($resource->parentResource);
         } else {
-            foreach ($this->parentTypes($resource->key) as $parentClass) {
+            $parentTypes = $this->resolvedParentTypes($resource->key);
+            $registeredParentTypes = array_filter(
+                $parentTypes,
+                fn (string $parentClass): bool => $this->registry->hasModel($parentClass),
+            );
+            if ($registeredParentTypes === []) {
+                return $override ?? 'tenant';
+            }
+            foreach ($registeredParentTypes as $parentClass) {
                 $parents[] = $this->registry->forModel(new $parentClass);
             }
         }
-        $mode = null;
+        $parent = array_shift($parents);
+        $mode = $this->deriveMode($parent, $visited);
         foreach ($parents as $parent) {
             $parentMode = $this->deriveMode($parent, $visited);
-            if ($mode !== null && $mode !== $parentMode) {
+            if ($mode !== $parentMode) {
                 throw new TenantConfigurationInvalid('Polymorphic parents must have one consistent ownership mode.');
             }
-            $mode = $parentMode;
-        }
-        if ($mode === null) {
-            throw new TenantConfigurationInvalid('Inherited ownership requires at least one registered parent.');
         }
         if ($override !== null && $override !== $mode) {
             throw new TenantConfigurationInvalid('Inherited resources cannot override their parent ownership mode.');
         }
 
         return $mode;
-    }
-
-    /** Validate actual adapter output before constructing parent models.
-     * @param  array<mixed>  $types
-     * @return array<string, class-string<Model>>
-     */
-    private function validateTypes(array $types): array
-    {
-        foreach ($types as $type => $model) {
-            if (! is_string($type) || $type === '' || ! is_string($model) || ! is_a($model, Model::class, true)) {
-                throw new TenantConfigurationInvalid('Canonical parent allowlists require persisted types and concrete models.');
-            }
-            $this->registry->forModel(new $model);
-        }
-        ksort($types);
-
-        return $types;
     }
 
     /**

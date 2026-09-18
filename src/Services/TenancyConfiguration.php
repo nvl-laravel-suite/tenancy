@@ -81,10 +81,7 @@ final readonly class TenancyConfiguration
             ));
         }
 
-        if ($tenancy['connection'] !== null
-            && (! is_string($tenancy['connection']) || trim($tenancy['connection']) === '')) {
-            throw new TenantConfigurationInvalid('tenancy.connection must be null or a non-empty string.');
-        }
+        $this->validateConnection($tenancy['connection']);
 
         if ($tenancy['profile'] !== 'application') {
             throw new TenantConfigurationInvalid(sprintf(
@@ -124,6 +121,25 @@ final readonly class TenancyConfiguration
 
         if ($directory['adapter'] !== null && ! is_string($directory['adapter'])) {
             throw new TenantConfigurationInvalid('tenancy.directory.adapter must be null or a class string.');
+        }
+    }
+
+    /**
+     * Require the optional core storage alias to name a configured Laravel connection.
+     *
+     * @throws TenantConfigurationInvalid When the connection value or alias is invalid
+     */
+    private function validateConnection(mixed $connection): void
+    {
+        if ($connection === null) {
+            return;
+        }
+        if (! is_string($connection) || trim($connection) === '') {
+            throw new TenantConfigurationInvalid('tenancy.connection must be null or a non-empty string.');
+        }
+        $connections = $this->configuration->get('database.connections');
+        if (! is_array($connections) || ! array_key_exists($connection, $connections)) {
+            throw new TenantConfigurationInvalid('tenancy.connection must name a configured Laravel database connection.');
         }
     }
 

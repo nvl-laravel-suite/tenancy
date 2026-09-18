@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nvl\Tenancy\Services;
 
 use Illuminate\Support\Str;
+use Nvl\Tenancy\Definitions\Tables\TenancyTables;
 use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
 use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
 use Nvl\Tenancy\Exceptions\TenantSchemaNotReady;
@@ -28,10 +29,10 @@ final readonly class TenantOperationRecorder
         if ($connection->transactionLevel() !== 0) {
             throw new TenantBoundaryViolation('Operation audit cannot be recorded inside an existing transaction.');
         }
-        if (! $connection->getSchemaBuilder()->hasTable('nvl_tenancy_operations')) {
+        if (! $connection->getSchemaBuilder()->hasTable(TenancyTables::Operations)) {
             throw new TenantSchemaNotReady('The tenant operation audit store is not installed.');
         }
-        $connection->table('nvl_tenancy_operations')->insert([
+        $connection->table(TenancyTables::Operations)->insert([
             'id' => (string) Str::uuid(),
             'actor_type' => $operation->actorType,
             'actor_id' => $operation->actorId,

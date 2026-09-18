@@ -57,9 +57,54 @@ final readonly class TenantAdoptionGraph
                 $families[$definition->family][] = $key;
             }
         }
+        $packages = array_values(array_unique($packages));
+        sort($packages);
+        $selected = [];
+        $queue = [];
+        foreach ($packages as $package) {
+            if (! isset($adapters[$package])) {
+                throw new TenantConfigurationInvalid('Unknown adoption adapter or cyclic package dependency.');
+            }
+            $selected[$package] = true;
+            $queue[] = $package;
+        }
+        $structuralDependencies = [];
+        for ($index = 0; isset($queue[$index]); $index++) {
+            $package = $queue[$index];
+            foreach ($adapters[$package]->resources() as $key) {
+                $definition = $this->resources->get($key);
+                foreach ($this->resources->dependencies()[$definition->family] ?? [] as $family) {
+                    foreach ($families[$family] ?? throw new TenantConfigurationInvalid('A dependency has no registered adoption adapter.') as $resource) {
+                        $owner = $owners[$resource] ?? throw new TenantConfigurationInvalid('A dependency has no registered adoption adapter.');
+                        if (! isset($selected[$owner])) {
+                            $selected[$owner] = true;
+                            $queue[] = $owner;
+                        }
+                    }
+                }
+                $parents = [];
+                if ($definition->parentResource !== null) {
+                    $parents[] = $definition->parentResource;
+                } elseif ($definition->kind === TenantResourceKind::Inherited) {
+                    foreach ($this->ownership->parentTypes($key) as $class) {
+                        $parents[] = $this->resources->forModel(new $class)->key;
+                    }
+                }
+                foreach ($parents as $resource) {
+                    $owner = $owners[$resource] ?? throw new TenantConfigurationInvalid('A canonical parent has no registered adoption adapter.');
+                    if ($owner !== $package) {
+                        $structuralDependencies[$package][$owner] = true;
+                        if (! isset($selected[$owner])) {
+                            $selected[$owner] = true;
+                            $queue[] = $owner;
+                        }
+                    }
+                }
+            }
+        }
         $ordered = [];
         $visiting = [];
-        $visit = function (string $package) use (&$visit, &$ordered, &$visiting, $adapters, $owners, $families): void {
+        $visit = function (string $package) use (&$visit, &$ordered, &$visiting, $adapters, $structuralDependencies): void {
             if (isset($ordered[$package])) {
                 return;
             }
@@ -67,37 +112,17 @@ final readonly class TenantAdoptionGraph
                 throw new TenantConfigurationInvalid('Unknown adoption adapter or cyclic package dependency.');
             }
             $visiting[$package] = true;
-            $dependencies = [];
-            foreach ($adapters[$package]->resources() as $key) {
-                $definition = $this->resources->get($key);
-                $required = [];
-                foreach ($this->resources->dependencies()[$definition->family] ?? [] as $family) {
-                    $required = [...$required, ...($families[$family] ?? throw new TenantConfigurationInvalid('A dependency has no registered adoption adapter.'))];
-                }
-                if ($definition->parentResource !== null) {
-                    $required[] = $definition->parentResource;
-                } elseif ($definition->kind === TenantResourceKind::Inherited) {
-                    foreach ($this->ownership->parentTypes($key) as $class) {
-                        $required[] = $this->resources->forModel(new $class)->key;
-                    }
-                }
-                foreach ($required as $resource) {
-                    $owner = $owners[$resource] ?? throw new TenantConfigurationInvalid('A canonical parent has no registered adoption adapter.');
-                    if ($owner !== $package) {
-                        $dependencies[$owner] = true;
-                    }
-                }
-            }
-            ksort($dependencies);
-            foreach (array_keys($dependencies) as $dependency) {
+            $dependencies = array_keys($structuralDependencies[$package] ?? []);
+            sort($dependencies);
+            foreach ($dependencies as $dependency) {
                 $visit($dependency);
             }
             unset($visiting[$package]);
             $ordered[$package] = $adapters[$package];
         };
-        $packages = array_values(array_unique($packages));
-        sort($packages);
-        foreach ($packages as $package) {
+        $selectedPackages = array_keys($selected);
+        sort($selectedPackages);
+        foreach ($selectedPackages as $package) {
             $visit($package);
         }
         $keys = [];

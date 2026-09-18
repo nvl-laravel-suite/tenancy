@@ -515,6 +515,22 @@ it('normalizes canonical parent and family dependencies in adapter order', funct
         ->and($graph['resources'])->toBe(['children.records', 'tests.records']);
 });
 
+it('uses compatibility edges for selection without reversing canonical parent order', function (): void {
+    adoptionAdapter();
+    app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('children.records', 'children', InheritedRecord::class, TenantResourceKind::Inherited, 'tests.records', 'parent'));
+    app(TenantResourceRegistry::class)->requireCompatible('tests', 'children');
+    $adapter = new EmptyAdoptionAdapter;
+    $adapter->owned = ['children.records'];
+    app()->instance(EmptyAdoptionAdapter::class, $adapter);
+    app(TenantAdoptionRegistry::class)->register('children', EmptyAdoptionAdapter::class);
+
+    $graph = app(TenantAdoptionGraph::class)->resolve(['tests']);
+
+    expect($graph['packages'])->toBe(['children', 'tests'])
+        ->and(array_keys($graph['adapters']))->toBe(['tests', 'children'])
+        ->and($graph['resources'])->toBe(['children.records', 'tests.records']);
+});
+
 it('rejects metadata on an adapter without the optional package validator', function (): void {
     $adapter = new EmptyAdoptionAdapter;
     $adapter->owned = ['tests.records'];

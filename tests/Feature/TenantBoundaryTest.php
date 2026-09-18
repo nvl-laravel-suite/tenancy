@@ -25,6 +25,7 @@ use Nvl\Tenancy\Tests\Fixtures\InheritedRecord;
 use Nvl\Tenancy\Tests\Fixtures\InMemoryMaintenanceMode;
 use Nvl\Tenancy\Tests\Fixtures\OwnedRecord;
 use Nvl\Tenancy\Tests\Fixtures\PolymorphicRecord;
+use Nvl\Tenancy\Tests\Fixtures\ProbeRestoredModel;
 use Nvl\Tenancy\Tests\Fixtures\TestPlatformAccess;
 use Nvl\Tenancy\ValueObjects\PlatformOperation;
 use Nvl\Tenancy\ValueObjects\TenantId;
@@ -63,6 +64,18 @@ it('groups every caller OR branch while preserving bindings and soft deletes', f
     app(TenantRunner::class)->run($tenants[0], function (): void {
         $query = OwnedRecord::where('name', 'match-first')->orWhere('name', 'match-second');
         expect(app(TenantBoundary::class)->query($query, 'tests.records')->pluck('name')->all())->toBe(['match-second']);
+    });
+});
+
+it('admits registered model subclasses only when they retain canonical storage', function (): void {
+    $tenants = F4InstallationFixture::install();
+    $record = ProbeRestoredModel::create(['tenant_id' => $tenants[0]->value, 'name' => 'specialized']);
+
+    app(TenantRunner::class)->run($tenants[0], function () use ($record): void {
+        app(TenantBoundary::class)->assertRecord($record, 'tests.records');
+
+        expect(app(TenantBoundary::class)->query(ProbeRestoredModel::query(), 'tests.records')->sole()->id)
+            ->toBe($record->id);
     });
 });
 

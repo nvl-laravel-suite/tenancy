@@ -9,6 +9,7 @@ use Illuminate\Console\Command;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Database\QueryException;
 use Illuminate\Queue\CallQueuedHandler;
+use Nvl\Tenancy\Definitions\Tables\TenancyTables;
 use Nvl\Tenancy\Exceptions\TenancyException;
 use Nvl\Tenancy\Queue\TenantCallQueuedHandler;
 use Nvl\Tenancy\Queue\TenantDatabaseBatchRepository;
@@ -45,8 +46,8 @@ final class TenancyDoctorCommand extends Command
             $checks[] = ['key' => 'tenancy.configuration', 'passed' => $deployment['compatible'], 'severity' => 'error', 'message' => $deployment['compatible'] ? 'Runtime ownership configuration is compatible.' : 'Loaded runtime packages require tenancy integration: '.implode(', ', $deployment['incompatible_families']).'.'];
             $enabled = $configuration->get('tenancy.enabled') === true;
             $schema = $connections->core()->getSchemaBuilder();
-            $installed = $schema->hasTable('nvl_tenancy_adoption_runs') && $schema->hasTable('nvl_tenancy_installation_state') && $schema->hasTable('nvl_tenancy_operations') && $schema->hasTable('nvl_tenancy_adoption_mappings');
-            $installed = $installed && ($configuration->get('tenancy.directory.driver') === 'host' || $schema->hasTable('nvl_tenancy_tenants'));
+            $installed = $schema->hasTable(TenancyTables::AdoptionRuns) && $schema->hasTable(TenancyTables::InstallationState) && $schema->hasTable(TenancyTables::Operations) && $schema->hasTable(TenancyTables::AdoptionMappings);
+            $installed = $installed && ($configuration->get('tenancy.directory.driver') === 'host' || $schema->hasTable(TenancyTables::Tenants));
             $deployment['schema'] = $installed ? 'installed' : 'missing';
             $checks[] = ['key' => 'tenancy.core', 'passed' => ! $enabled || $installed, 'severity' => 'error', 'message' => $installed ? 'Core adoption storage is installed.' : 'Core adoption storage is not installed.'];
             foreach ($resources->all() as $key => $resource) {
@@ -59,7 +60,7 @@ final class TenancyDoctorCommand extends Command
                 }
             }
             if ($installed) {
-                $interrupted = $connections->core()->table('nvl_tenancy_adoption_runs')->where('status', '!=', 'active')->exists();
+                $interrupted = $connections->core()->table(TenancyTables::AdoptionRuns)->where('status', '!=', 'active')->exists();
                 $checks[] = ['key' => 'tenancy.runs', 'passed' => ! $interrupted, 'severity' => 'warning', 'message' => $interrupted ? 'An adoption run requires resumption.' : 'No interrupted adoption run exists.'];
             }
         } catch (QueryException|PDOException) {

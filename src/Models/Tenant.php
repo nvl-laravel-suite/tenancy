@@ -7,6 +7,7 @@ namespace Nvl\Tenancy\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
+use Nvl\Tenancy\Definitions\Tables\TenancyTables;
 use Nvl\Tenancy\Enums\TenantStatus;
 use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
 
@@ -23,7 +24,7 @@ final class Tenant extends Model
 {
     use HasUuids;
 
-    public const string TABLE = 'nvl_tenancy_tenants';
+    public const string TABLE = TenancyTables::Tenants;
 
     /** @var list<string> */
     protected $fillable = [

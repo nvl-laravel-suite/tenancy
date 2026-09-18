@@ -20,7 +20,11 @@ interface TenantAdoptionAdapter
     /** Process at most the supplied limit using stable primary-key progress. */
     public function backfill(TenantAdoptionPlan $plan, ?string $cursor, int $limit): TenantBackfillResult;
 
-    /** Inspect actual storage and canonical parents without mutating records. */
+    /**
+     * Inspect actual storage and canonical parents without mutating records.
+     *
+     * @phpstan-impure
+     */
     public function verify(TenantAdoptionPlan $plan): TenantVerification;
 
     /** Apply and validate final constraints idempotently before any active marker is published. */
