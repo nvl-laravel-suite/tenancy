@@ -231,7 +231,8 @@ final readonly class TenantAdoptionCoordinator
         $run = $this->store->load($plan->id);
         $graph = $this->graphs->resolve($run['packages']);
         if ($run['plan'] != $plan || $graph['packages'] !== $run['packages'] || ! hash_equals($graph['manifest'], $run['checkpoints']['manifest'])
-            || array_keys($run['checkpoints']['adapters']) !== $run['packages']
+            || array_diff(array_keys($run['checkpoints']['adapters']), $run['packages']) !== []
+            || array_diff($run['packages'], array_keys($run['checkpoints']['adapters'])) !== []
             || ! hash_equals($this->ownership->hash($graph['resources']), $plan->configurationHash)
             || ! hash_equals($this->store->mappingHash($plan->id, $graph), $plan->mappingHash)
             || ! in_array($run['status'], ['prepared', 'backfilling', 'backfilled', 'activating', 'active'], true)) {
