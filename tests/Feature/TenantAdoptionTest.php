@@ -26,13 +26,13 @@ use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
 use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
 use Nvl\Tenancy\Exceptions\TenantSchemaNotReady;
 use Nvl\Tenancy\Services\DenyPlatformAccess;
+use Nvl\Tenancy\Services\TenantAdoptionBoundary;
 use Nvl\Tenancy\Services\TenantAdoptionCoordinator;
 use Nvl\Tenancy\Services\TenantAdoptionGraph;
 use Nvl\Tenancy\Services\TenantAdoptionLock;
 use Nvl\Tenancy\Services\TenantAdoptionMappings;
 use Nvl\Tenancy\Services\TenantAdoptionRegistry;
 use Nvl\Tenancy\Services\TenantAdoptionScope;
-use Nvl\Tenancy\Services\TenantAdoptionSupport;
 use Nvl\Tenancy\Services\TenantBoundary;
 use Nvl\Tenancy\Services\TenantGlobalJobRegistry;
 use Nvl\Tenancy\Services\TenantInstallationState;
@@ -87,17 +87,17 @@ it('centralizes canonical adoption batches ownership and progress results', func
         [$assignment],
         adoptionOperation(),
     );
-    $support = app(TenantAdoptionSupport::class);
+    $boundary = app(TenantAdoptionBoundary::class);
 
-    expect($support->connection($plan, 'tests.records'))->toBe(DB::connection())
-        ->and($support->assignments($plan, 'tests.records', null, 50))->toEqual([$assignment])
-        ->and($support->ownership($assignment, 'tests.records'))->toBe([
+    expect($boundary->connection($plan, 'tests.records'))->toBe(DB::connection())
+        ->and($boundary->assignments($plan, 'tests.records', null, 50))->toEqual([$assignment])
+        ->and($boundary->ownership($assignment, 'tests.records'))->toBe([
             'tenant_id' => $tenant->value,
         ])
-        ->and($support->result([$assignment]))->toEqual(
+        ->and($boundary->result([$assignment]))->toEqual(
             new TenantBackfillResult('record-1', 1),
         )
-        ->and($support->result([]))->toEqual(new TenantBackfillResult(null, 0));
+        ->and($boundary->result([]))->toEqual(new TenantBackfillResult(null, 0));
 });
 
 it('adds the canonical discriminator for mixed adoption resources', function (): void {
@@ -110,7 +110,7 @@ it('adds the canonical discriminator for mixed adoption resources', function ():
     $tenant = adoptionTenant();
     $assignment = new TenantAssignment('tests.mixed-records', 'record-1', $tenant);
 
-    expect(app(TenantAdoptionSupport::class)->ownership($assignment, 'tests.mixed-records'))->toBe([
+    expect(app(TenantAdoptionBoundary::class)->ownership($assignment, 'tests.mixed-records'))->toBe([
         'tenant_id' => $tenant->value,
         'ownership_key' => 'tenant:'.$tenant->value,
     ]);

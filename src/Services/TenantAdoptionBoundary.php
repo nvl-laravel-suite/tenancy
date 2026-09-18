@@ -11,10 +11,10 @@ use Nvl\Tenancy\ValueObjects\TenantAdoptionPlan;
 use Nvl\Tenancy\ValueObjects\TenantAssignment;
 use Nvl\Tenancy\ValueObjects\TenantBackfillResult;
 
-/** Supplies canonical connection, assignment, ownership, and progress mechanics to package adopters. */
-final readonly class TenantAdoptionSupport
+/** Enforces canonical connection, assignment, ownership, and progress rules during package adoption. */
+final readonly class TenantAdoptionBoundary
 {
-    /** Create the package-adoption support boundary. */
+    /** Create the package-adoption invariant boundary. */
     public function __construct(
         private EffectiveTenantConnection $connections,
         private TenantAdoptionMappings $mappings,
@@ -71,7 +71,7 @@ final readonly class TenantAdoptionSupport
 
         $attributes = ['tenant_id' => $assignment->tenantId->value];
 
-        if ($definition->allowsPlatformCatalog || $definition->allowsPlatformRows) {
+        if ($definition->usesOwnershipKey()) {
             $attributes['ownership_key'] = 'tenant:'.$assignment->tenantId->value;
         }
 

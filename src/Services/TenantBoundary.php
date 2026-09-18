@@ -80,7 +80,7 @@ final readonly class TenantBoundary
             throw new TenantBoundaryViolation('Ownership attributes require a root resource.');
         }
         $attributes = ['tenant_id' => $snapshot->tenantId?->value];
-        if ($definition->allowsPlatformCatalog || $definition->allowsPlatformRows) {
+        if ($definition->usesOwnershipKey()) {
             $attributes['ownership_key'] = $this->ownershipKey($snapshot);
         }
 
@@ -154,7 +154,7 @@ final readonly class TenantBoundary
         $mode = $this->ownership()->mode($resource);
         if (($snapshot->mode === TenantContextMode::Tenant && $mode === 'platform')
             || ($snapshot->mode === TenantContextMode::Platform && $resource->kind === TenantResourceKind::Root
-                && ! $resource->allowsPlatformCatalog && ! $resource->allowsPlatformRows)) {
+            && ! $resource->usesOwnershipKey())) {
             throw new TenantBoundaryViolation('The context cannot access this resource ownership mode.');
         }
     }
@@ -223,7 +223,7 @@ final readonly class TenantBoundary
             $base->addNestedWhereQuery($nested);
         }
         $query->where($query->getModel()->qualifyColumn('tenant_id'), $snapshot->tenantId?->value);
-        if ($resource->allowsPlatformCatalog || $resource->allowsPlatformRows) {
+        if ($resource->usesOwnershipKey()) {
             $query->where($query->getModel()->qualifyColumn('ownership_key'), $this->ownershipKey($snapshot));
         }
         if ($resource->kind === TenantResourceKind::Inherited) {
@@ -302,7 +302,7 @@ final readonly class TenantBoundary
         }
         $visited[] = $identity;
         $columns = [$record->getKeyName(), 'tenant_id'];
-        if ($resource->allowsPlatformCatalog || $resource->allowsPlatformRows) {
+        if ($resource->usesOwnershipKey()) {
             $columns[] = 'ownership_key';
         }
         $relation = $resource->kind === TenantResourceKind::Inherited ? $this->parentRelation($resource) : null;
@@ -314,7 +314,7 @@ final readonly class TenantBoundary
         }
         $facts = $record->getConnection()->table($record->getTable())->where($record->getKeyName(), $key)->first(array_unique($columns));
         if ($facts === null || $facts->tenant_id !== $snapshot->tenantId?->value
-            || (($resource->allowsPlatformCatalog || $resource->allowsPlatformRows)
+            || ($resource->usesOwnershipKey()
                 && $facts->ownership_key !== $this->ownershipKey($snapshot))) {
             throw new TenantBoundaryViolation;
         }

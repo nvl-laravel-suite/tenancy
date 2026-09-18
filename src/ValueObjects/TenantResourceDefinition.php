@@ -15,7 +15,6 @@ final readonly class TenantResourceDefinition
     /**
      * Declare one concrete resource and its ownership capabilities.
      *
-     *
      * @param  class-string<Model>  $model
      */
     public function __construct(
@@ -34,14 +33,20 @@ final readonly class TenantResourceDefinition
         }
         if ($kind === TenantResourceKind::Inherited) {
             if ($parentRelation === null || $parentRelation === '' || ! method_exists($model, $parentRelation)
-                || $parentResource === '' || $allowsPlatformCatalog || $allowsPlatformRows) {
+                || $parentResource === '' || $this->usesOwnershipKey()) {
                 throw new TenantConfigurationInvalid('Inherited resources require a canonical parent relation and cannot declare independent platform ownership.');
             }
         } elseif ($parentResource !== null || $parentRelation !== null) {
             throw new TenantConfigurationInvalid('Only inherited resources may declare a parent.');
         }
-        if ($kind === TenantResourceKind::Platform && ($allowsPlatformCatalog || $allowsPlatformRows)) {
+        if ($kind === TenantResourceKind::Platform && $this->usesOwnershipKey()) {
             throw new TenantConfigurationInvalid('Fixed platform resources cannot declare mixed ownership.');
         }
+    }
+
+    /** Determine whether the resource stores the mixed platform-or-tenant discriminator. */
+    public function usesOwnershipKey(): bool
+    {
+        return $this->allowsPlatformCatalog || $this->allowsPlatformRows;
     }
 }

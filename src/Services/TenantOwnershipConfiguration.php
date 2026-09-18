@@ -72,7 +72,7 @@ final readonly class TenantOwnershipConfiguration
                 throw new TenantConfigurationInvalid('A fixed platform family cannot be reclassified.');
             }
             foreach ($mutable as $resource) {
-                if ($resource->kind === TenantResourceKind::Root && $mode === 'platform' && ! $resource->allowsPlatformCatalog && ! $resource->allowsPlatformRows) {
+                if ($resource->kind === TenantResourceKind::Root && $mode === 'platform' && ! $resource->usesOwnershipKey()) {
                     throw new TenantConfigurationInvalid('The family does not support the requested ownership mode.');
                 }
             }
@@ -335,8 +335,8 @@ final readonly class TenantOwnershipConfiguration
             'catalog' => $resource->allowsPlatformCatalog, 'platform_rows' => $resource->allowsPlatformRows,
             'mode' => $this->mode($resource), 'table' => $model->getTable(),
             'connection' => $this->connections->name($model->getConnectionName()),
-            'columns' => ['tenant_id', ...($resource->allowsPlatformCatalog || $resource->allowsPlatformRows ? ['ownership_key'] : [])],
-            ...($resource->allowsPlatformCatalog || $resource->allowsPlatformRows ? ['ownership_key_format' => 'platform|tenant:<uuid>'] : []),
+            'columns' => ['tenant_id', ...($resource->usesOwnershipKey() ? ['ownership_key'] : [])],
+            ...($resource->usesOwnershipKey() ? ['ownership_key_format' => 'platform|tenant:<uuid>'] : []),
             'parent_resolver' => $types === [] ? null : $this->registry->parentResolver($resource->key),
             'parent_types' => $types, 'dependencies' => $dependencies,
         ];
