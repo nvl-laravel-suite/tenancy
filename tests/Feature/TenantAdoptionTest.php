@@ -32,6 +32,7 @@ use Nvl\Tenancy\Services\TenantAdoptionLock;
 use Nvl\Tenancy\Services\TenantAdoptionMappings;
 use Nvl\Tenancy\Services\TenantAdoptionRegistry;
 use Nvl\Tenancy\Services\TenantAdoptionScope;
+use Nvl\Tenancy\Services\TenantAdoptionSupport;
 use Nvl\Tenancy\Services\TenantBoundary;
 use Nvl\Tenancy\Services\TenantGlobalJobRegistry;
 use Nvl\Tenancy\Services\TenantInstallationState;
@@ -75,6 +76,44 @@ it('activates verified empty registered resources through the public coordinator
     $coordinator->activate($plan, $operation);
     expect(DB::table('nvl_tenancy_installation_state')->where('resource', 'tests.records')->value('state'))->toBe('active')
         ->and(DB::connection()->transactionLevel())->toBe(0);
+});
+
+it('centralizes canonical adoption batches ownership and progress results', function (): void {
+    $tenant = adoptionTenant();
+    adoptionAdapter();
+    $assignment = new TenantAssignment('tests.records', 'record-1', $tenant);
+    $plan = app(TenantAdoptionCoordinator::class)->prepare(
+        ['tests'],
+        [$assignment],
+        adoptionOperation(),
+    );
+    $support = app(TenantAdoptionSupport::class);
+
+    expect($support->connection($plan, 'tests.records'))->toBe(DB::connection())
+        ->and($support->assignments($plan, 'tests.records', null, 50))->toEqual([$assignment])
+        ->and($support->ownership($assignment, 'tests.records'))->toBe([
+            'tenant_id' => $tenant->value,
+        ])
+        ->and($support->result([$assignment]))->toEqual(
+            new TenantBackfillResult('record-1', 1),
+        )
+        ->and($support->result([]))->toEqual(new TenantBackfillResult(null, 0));
+});
+
+it('adds the canonical discriminator for mixed adoption resources', function (): void {
+    app(TenantResourceRegistry::class)->register(new TenantResourceDefinition(
+        'tests.mixed-records',
+        'mixed-records',
+        InheritedRecord::class,
+        allowsPlatformRows: true,
+    ));
+    $tenant = adoptionTenant();
+    $assignment = new TenantAssignment('tests.mixed-records', 'record-1', $tenant);
+
+    expect(app(TenantAdoptionSupport::class)->ownership($assignment, 'tests.mixed-records'))->toBe([
+        'tenant_id' => $tenant->value,
+        'ownership_key' => 'tenant:'.$tenant->value,
+    ]);
 });
 
 /** Install an explicit directory entry without writing or fabricating core tenant rows. */
