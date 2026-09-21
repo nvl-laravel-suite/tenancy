@@ -4,6 +4,11 @@ All notable changes to `nvl/tenancy` are documented here.
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-09-21
+
+- Released unchanged under the suite's shared version; the 2.1.1 corrective
+  change is isolated to `nvl/media`.
+
 ## [2.1.0] - 2026-09-21
 
 - Prove standalone Tenancy archives with only Support/Data, cached configuration,
