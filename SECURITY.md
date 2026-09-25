@@ -1,5 +1,7 @@
 # Security Policy
 
+Submit reports through [this package's private vulnerability reporting form](https://github.com/nvl-laravel-suite/tenancy/security/advisories/new).
+
 Security fixes are provided for the current `2.x` line on PHP 8.4 and Laravel
 13.
 

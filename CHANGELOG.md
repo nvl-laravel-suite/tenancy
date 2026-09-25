@@ -4,6 +4,12 @@ All notable changes to `nvl/tenancy` are documented here.
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-09-26
+
+### Documentation
+
+- Clarify public support, contribution, and private security reporting paths.
+
 ## [2.2.0] - 2026-09-25
 
 ### Changed
