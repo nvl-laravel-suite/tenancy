@@ -1,6 +1,6 @@
 # NVL Tenancy — API and usage
 
-[← NVL Laravel Suite](../../../README.md)
+[← NVL Laravel Suite](https://github.com/nvl-laravel-suite)
 
 ## Quick reference
 
@@ -35,7 +35,7 @@ php artisan vendor:publish --tag=tenancy-skills
 ```
 
 Laravel auto-discovers `Nvl\Tenancy\Providers\TenancyServiceProvider`. The
-module requires `nvl/support` and `nvl/data` from the Suite 2.x line. NVL Auth
+package requires `nvl/core` from the 2.x package line. NVL Auth
 is not required. Filterable is an optional host dependency, installed explicitly
 when the host uses its query filters. The Suite install remains supported.
 

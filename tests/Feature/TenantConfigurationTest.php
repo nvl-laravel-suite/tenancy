@@ -97,6 +97,23 @@ it('requires only an adoption adapter for a loaded zero-resource csv integration
         ->and(app(TenantResourceRegistry::class)->all())->toBe([]);
 });
 
+it('does not require tenancy integrations from optional providers that are not loaded', function (): void {
+    config()->set('tenancy.enabled', true);
+    $application = Mockery::mock(Application::class)->makePartial();
+    $application->shouldReceive('providerIsLoaded')->andReturn(false);
+    $application->shouldReceive('make')->with(TenantAdoptionRegistry::class)->andReturn(app(TenantAdoptionRegistry::class));
+
+    $ownership = new TenantOwnershipConfiguration(
+        config(),
+        app(TenantResourceRegistry::class),
+        app(EffectiveTenantConnection::class),
+        $application,
+    );
+
+    expect($ownership->incompatibleFamilies())->toBe([])
+        ->and($ownership->assertReady())->toBeNull();
+});
+
 it('reports actual configured model tables and aliases without a schema probe', function (): void {
     $model = new class extends OwnedRecord
     {
