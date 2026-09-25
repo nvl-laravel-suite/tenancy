@@ -5,6 +5,8 @@
 For support, [open an issue](https://github.com/nvl-laravel-suite/tenancy/issues). For vulnerabilities, use
 [private reporting](https://github.com/nvl-laravel-suite/tenancy/security/advisories/new). See [Contributing](CONTRIBUTING.md).
 
+See the [installation and publishing guide](https://github.com/nvl-laravel-suite/laravel-suite/blob/main/INSTALLATION.md) for Composer setup, configuration, migration ownership, and agent skills.
+
 ## Quick reference
 
 | Item | Value |
@@ -32,10 +34,20 @@ and act only during a recovery lease.
 
 ```bash
 composer require nvl/tenancy:^2.0
+```
+
+The package is inert after installation. Publish configuration only when the
+application needs to change its defaults, and publish skills only when its
+agents need Tenancy guidance:
+
+```bash
 php artisan vendor:publish --tag=tenancy-config
-php artisan vendor:publish --tag=tenancy-migrations
 php artisan vendor:publish --tag=tenancy-skills
 ```
+
+Do not publish `tenancy-migrations` as a routine installation step. Published
+migrations become application migrations and will run on the next
+`php artisan migrate`, even while `tenancy.migrations.enabled` is false.
 
 Laravel auto-discovers `Nvl\Tenancy\Providers\TenancyServiceProvider`. The
 package requires `nvl/core` from the 2.x package line. NVL Auth
@@ -97,6 +109,13 @@ state, privileged-operation audit, adoption runs, and reviewed adoption mappings
 Feature activation never registers this path by itself. A package-owned effective
 directory receives tenant foreign keys; an effective host directory keeps its
 application tenant identifiers as verified references.
+
+For an application-owned migration copy, keep
+`tenancy.migrations.enabled=false`, publish once with
+`php artisan vendor:publish --tag=tenancy-migrations`, review the files, then
+run `php artisan migrate`. For vendor-owned migrations, enable the setting
+before running `php artisan migrate` and leave the tag unpublished. Never run
+both sources.
 
 ### Runtime compatibility and readiness
 
