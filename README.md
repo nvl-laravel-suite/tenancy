@@ -98,14 +98,12 @@ application tenant identifiers as verified references.
 ### Runtime compatibility and readiness
 
 Provider selection, `tenancy.enabled`, ownership configuration, and persisted
-adoption readiness are separate facts. `nvl:suite:configuration --format=json`
-reports selected/loaded providers and a separate `tenancy` object with feature
-state, effective connection, registered models/tables/modes and incompatible
-loaded families. This metadata inspection does not probe schema; its schema
-status is `not-probed`. `nvl:tenancy:doctor --json` performs explicit read-only
-storage probes and reports core storage, each resource's installation state,
-and interrupted runs separately. Database errors fail diagnostics; they never
-mean that a database is unadopted.
+adoption readiness are separate facts. The standalone package exposes
+`nvl:tenancy:doctor --json` for read-only storage probes, registered resource
+inspection, installation state, and interrupted runs. Its configuration
+inspection does not probe schema and reports `not-probed` until Doctor checks
+storage. Database errors fail diagnostics; they never mean that a database is
+unadopted.
 
 Loaded stateful NVL runtime providers require their real code-owned resource
 family and adoption adapter registrations before tenant activation. CSV requires
