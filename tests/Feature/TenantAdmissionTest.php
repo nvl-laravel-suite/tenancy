@@ -7,23 +7,25 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Facades\Route;
-use Nvl\Tenancy\Contracts\TenantContext;
-use Nvl\Tenancy\Contracts\TenantDirectory;
-use Nvl\Tenancy\Contracts\TenantHttpResolver;
-use Nvl\Tenancy\Contracts\TenantMembershipAccess;
+use Nvl\Support\Tenancy\Contracts\TenantContext;
+use Nvl\Support\Tenancy\Contracts\TenantDirectory;
+use Nvl\Support\Tenancy\Contracts\TenantHttpResolver;
+use Nvl\Support\Tenancy\Contracts\TenantMembershipAccess;
+use Nvl\Support\Tenancy\Enums\TenantContextMode;
+use Nvl\Support\Tenancy\Enums\TenantStatus;
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\Exceptions\TenantContextMissing;
+use Nvl\Support\Tenancy\Services\TenantSiteAttributes;
+use Nvl\Support\Tenancy\ValueObjects\TenantDescriptor;
+use Nvl\Support\Tenancy\ValueObjects\TenantId;
+use Nvl\Support\Tenancy\ValueObjects\TenantSiteContext;
 use Nvl\Tenancy\Contracts\TenantSiteResolver;
-use Nvl\Tenancy\Enums\TenantContextMode;
-use Nvl\Tenancy\Enums\TenantStatus;
-use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
-use Nvl\Tenancy\Exceptions\TenantContextMissing;
 use Nvl\Tenancy\Http\Middleware\RequireTenantMembership;
 use Nvl\Tenancy\Http\Middleware\ResolvePublicTenant;
 use Nvl\Tenancy\Services\TenantRunner;
 use Nvl\Tenancy\Tests\Fixtures\ArrayTenantDirectory;
 use Nvl\Tenancy\Tests\Fixtures\StrictTenantHttpResolver;
-use Nvl\Tenancy\ValueObjects\TenantDescriptor;
-use Nvl\Tenancy\ValueObjects\TenantId;
-use Nvl\Tenancy\ValueObjects\TenantSiteContext;
+use Symfony\Component\HttpFoundation\Response;
 
 beforeEach(function (): void {
     config()->set('tenancy.enabled', true);
@@ -167,3 +169,36 @@ it('never reuses public site objects across requests and rejects nested tenant d
     $this->getJson('/nested-site')->assertOk()->assertJsonPath('site', 'first');
     $this->getJson('/public/two')->assertOk()->assertJsonPath('site', 'second')->assertJsonPath('record', $this->b->value.':two');
 });
+
+it('restores both public site attribute keys after successful and failed request scopes', function (bool $fail): void {
+    $site = new TenantSiteContext($this->a, 'current', 'https://current.example');
+    app()->instance(TenantSiteResolver::class, new class($site) implements TenantSiteResolver
+    {
+        public function __construct(private TenantSiteContext $site) {}
+
+        public function resolve(Request $request): TenantSiteContext
+        {
+            return $this->site;
+        }
+    });
+    $request = Request::create('https://current.example');
+    $original = [TenantSiteContext::class => null, TenantSiteAttributes::LegacyKey => 'legacy-before'];
+    $request->attributes->replace($original);
+    $invoke = static fn (): Response => app(ResolvePublicTenant::class)->handle($request, static function (Request $request) use ($site, $fail): Response {
+        expect($request->attributes->get(TenantSiteContext::class))->toBe($site)
+            ->and($request->attributes->get(TenantSiteAttributes::LegacyKey))->toBe($site);
+        if ($fail) {
+            throw new RuntimeException('Fixture callback failed.');
+        }
+
+        return new Response('ok');
+    });
+
+    if ($fail) {
+        expect($invoke)->toThrow(RuntimeException::class, 'Fixture callback failed.');
+    } else {
+        expect($invoke()->getContent())->toBe('ok');
+    }
+    expect($request->attributes->all())->toBe($original)
+        ->and(app(TenantContext::class)->snapshot()->mode)->toBe(TenantContextMode::Unresolved);
+})->with([false, true]);

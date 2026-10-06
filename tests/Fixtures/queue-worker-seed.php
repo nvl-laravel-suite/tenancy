@@ -8,11 +8,11 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
+use Nvl\Support\Tenancy\ValueObjects\TenantId;
 use Nvl\Tenancy\Services\TenantRunner;
 use Nvl\Tenancy\Tests\Fixtures\ProbeRestoredModel;
 use Nvl\Tenancy\Tests\Fixtures\ProbeTenantJob;
 use Nvl\Tenancy\Tests\Fixtures\QueueProbeInstallation;
-use Nvl\Tenancy\ValueObjects\TenantId;
 
 require $argv[1].'/vendor/autoload.php';
 $app = require $argv[1].'/bootstrap/app.php';

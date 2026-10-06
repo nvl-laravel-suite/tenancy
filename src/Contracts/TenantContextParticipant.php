@@ -4,16 +4,8 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Contracts;
 
-use Closure;
-use Nvl\Tenancy\ValueObjects\TenantContextSnapshot;
+use Nvl\Support\Tenancy\Contracts\TenantContextParticipant;
+use Nvl\Tenancy\Support\LegacyNeutralAlias;
 
-/** Installs scope-local integration state and provides its restoration. */
-interface TenantContextParticipant
-{
-    /**
-     * Install the next context, restoring partial state before throwing on failure.
-     *
-     * @return Closure(): void
-     */
-    public function enter(TenantContextSnapshot $next): Closure;
-}
+/** @deprecated Use \Nvl\Support\Tenancy\Contracts\TenantContextParticipant; retained for one major release. */
+LegacyNeutralAlias::register(TenantContextParticipant::class, 'Nvl\\Tenancy\\Contracts\\TenantContextParticipant');

@@ -10,13 +10,13 @@ use Illuminate\Bus\DatabaseBatchRepository;
 use Illuminate\Bus\PendingBatch;
 use Illuminate\Container\Container;
 use Illuminate\Database\PostgresConnection;
-use Nvl\Tenancy\Contracts\TenantContext;
-use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
-use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Contracts\TenantContext;
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Services\TenantQueuePayload;
+use Nvl\Support\Tenancy\ValueObjects\TenantJobEnvelope;
 use Nvl\Tenancy\Services\TenantQueueCarrier;
 use Nvl\Tenancy\Services\TenantQueueCommand;
-use Nvl\Tenancy\Services\TenantQueuePayload;
-use Nvl\Tenancy\ValueObjects\TenantJobEnvelope;
 use ReflectionProperty;
 
 /** Preserves native batch algorithms while validating callback ownership before deserialization. @internal */

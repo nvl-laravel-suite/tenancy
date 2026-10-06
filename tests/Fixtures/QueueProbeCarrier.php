@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Nvl\Tenancy\Tests\Fixtures;
 
 use Illuminate\Queue\SerializesModels;
-use Nvl\Tenancy\Contracts\TenantContext;
-use Nvl\Tenancy\ValueObjects\TenantJobEnvelope;
+use Nvl\Support\Tenancy\Contracts\TenantContext;
+use Nvl\Support\Tenancy\ValueObjects\TenantJobEnvelope;
 
 /** Explicit scalar capture shared by native wrapper test carriers. */
 trait QueueProbeCarrier

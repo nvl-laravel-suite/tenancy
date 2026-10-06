@@ -7,9 +7,9 @@ namespace Nvl\Tenancy\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
+use Nvl\Support\Config\PackageStorage;
+use Nvl\Support\Tenancy\Enums\TenantStatus;
 use Nvl\Tenancy\Definitions\Tables\TenancyTables;
-use Nvl\Tenancy\Enums\TenantStatus;
-use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
 
 /**
  * Represents one canonical package-owned tenant directory entry.
@@ -37,12 +37,7 @@ final class Tenant extends Model
     /** Use the deployment's explicit core storage connection. */
     public function getConnectionName(): ?string
     {
-        $connection = config('tenancy.connection');
-        if ($connection !== null && ! is_string($connection)) {
-            throw new TenantConfigurationInvalid('tenancy.connection must be null or a connection name.');
-        }
-
-        return $connection ?? parent::getConnectionName();
+        return PackageStorage::connectionName($this->connection ?? PackageStorage::connection('tenancy') ?? parent::getConnectionName());
     }
 
     /** @return array<string, class-string<TenantStatus>> */
@@ -51,5 +46,11 @@ final class Tenant extends Model
         return [
             'status' => TenantStatus::class,
         ];
+    }
+
+    /** Resolve the configured package storage table. */
+    public function getTable(): string
+    {
+        return TenancyTables::get(TenancyTables::Tenants);
     }
 }

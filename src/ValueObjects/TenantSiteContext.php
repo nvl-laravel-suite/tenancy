@@ -4,17 +4,8 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\ValueObjects;
 
-/**
- * Carries a verified tenant, site, and canonical public origin.
- */
-final readonly class TenantSiteContext
-{
-    /**
-     * Create a verified public-site context.
-     */
-    public function __construct(
-        public TenantId $tenantId,
-        public string $site,
-        public string $canonicalOrigin,
-    ) {}
-}
+use Nvl\Support\Tenancy\ValueObjects\TenantSiteContext;
+use Nvl\Tenancy\Support\LegacyNeutralAlias;
+
+/** @deprecated Use \Nvl\Support\Tenancy\ValueObjects\TenantSiteContext; retained for one major release. */
+LegacyNeutralAlias::register(TenantSiteContext::class, 'Nvl\\Tenancy\\ValueObjects\\TenantSiteContext');

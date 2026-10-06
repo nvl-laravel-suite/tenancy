@@ -4,23 +4,8 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Exceptions;
 
-use Illuminate\Http\Response;
-use Nvl\Tenancy\Enums\TenancyResponseCode;
+use Nvl\Support\Tenancy\Exceptions\TenantNotFound;
+use Nvl\Tenancy\Support\LegacyNeutralAlias;
 
-/**
- * Reports a tenant identifier absent from the configured directory.
- */
-final class TenantNotFound extends TenancyException
-{
-    /**
-     * Create an unknown-tenant failure.
-     */
-    public function __construct(string $message = 'Tenant was not found.')
-    {
-        parent::__construct(
-            message: $message,
-            responseCode: TenancyResponseCode::TenantNotFound,
-            suggestedStatus: Response::HTTP_NOT_FOUND,
-        );
-    }
-}
+/** @deprecated Use \Nvl\Support\Tenancy\Exceptions\TenantNotFound; retained for one major release. */
+LegacyNeutralAlias::register(TenantNotFound::class, 'Nvl\\Tenancy\\Exceptions\\TenantNotFound');

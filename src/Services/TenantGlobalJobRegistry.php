@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Nvl\Tenancy\Services;
 
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
 use ReflectionClass;
 
 /** Explicitly admits specific application-owned global identity jobs. */

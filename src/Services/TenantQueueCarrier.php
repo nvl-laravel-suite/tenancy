@@ -7,9 +7,10 @@ namespace Nvl\Tenancy\Services;
 use Illuminate\Events\CallQueuedListener;
 use Illuminate\Mail\SendQueuedMailable;
 use Illuminate\Notifications\SendQueuedNotifications;
-use Nvl\Tenancy\Contracts\TenantQueuedJob;
-use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
-use Nvl\Tenancy\ValueObjects\TenantJobEnvelope;
+use Nvl\Support\Tenancy\Contracts\TenantQueuedJob;
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\Services\TenantQueuePayload;
+use Nvl\Support\Tenancy\ValueObjects\TenantJobEnvelope;
 
 /** Fixed adapters for native commands and native delivery wrappers. @internal */
 final class TenantQueueCarrier

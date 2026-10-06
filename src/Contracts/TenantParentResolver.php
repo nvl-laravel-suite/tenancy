@@ -4,19 +4,8 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Contracts;
 
-use Illuminate\Database\Eloquent\Model;
+use Nvl\Support\Tenancy\Contracts\TenantParentResolver;
+use Nvl\Tenancy\Support\LegacyNeutralAlias;
 
-/**
- * Supplies the owning package's allowlisted persisted morph identities.
- *
- * @internal
- */
-interface TenantParentResolver
-{
-    /**
-     * Return explicitly allowed persisted type values and concrete model classes.
-     *
-     * @return array<string, class-string<Model>>
-     */
-    public function types(): array;
-}
+/** @deprecated Use \Nvl\Support\Tenancy\Contracts\TenantParentResolver; retained for one major release. */
+LegacyNeutralAlias::register(TenantParentResolver::class, 'Nvl\\Tenancy\\Contracts\\TenantParentResolver');

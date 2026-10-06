@@ -6,8 +6,8 @@ namespace Nvl\Tenancy\Services;
 
 use Closure;
 use Illuminate\Database\Connection;
-use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
-use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
 use PDO;
 use ReflectionProperty;
 use WeakMap;

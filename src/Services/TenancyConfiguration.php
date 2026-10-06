@@ -7,12 +7,14 @@ namespace Nvl\Tenancy\Services;
 use Closure;
 use Illuminate\Config\Repository;
 use Illuminate\Container\Container;
+use Nvl\Support\Tenancy\Contracts\TenantDirectory;
+use Nvl\Support\Tenancy\Contracts\TenantHttpResolver;
+use Nvl\Support\Tenancy\Contracts\TenantMembershipAccess;
+use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Services\DisabledTenantDirectory;
+use Nvl\Support\Tenancy\Services\DisabledTenantMembershipAccess;
 use Nvl\Tenancy\Contracts\PlatformAccess;
-use Nvl\Tenancy\Contracts\TenantDirectory;
-use Nvl\Tenancy\Contracts\TenantHttpResolver;
-use Nvl\Tenancy\Contracts\TenantMembershipAccess;
 use Nvl\Tenancy\Contracts\TenantSiteResolver;
-use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
 use ReflectionClass;
 use ReflectionFunction;
 
@@ -68,6 +70,7 @@ final readonly class TenancyConfiguration
             'resources',
             'sharing',
             'migrations',
+            ...array_values(array_intersect(['tables', 'queue', 'locks', 'routes', 'auth', 'authorization'], array_keys($tenancy))),
         ], 'tenancy');
 
         if (! is_bool($tenancy['enabled'])) {
@@ -298,8 +301,15 @@ final readonly class TenancyConfiguration
         $reflection = new ReflectionFunction($concrete);
         $variables = $reflection->getStaticVariables();
 
+        if (in_array($variables['concrete'] ?? null, [
+            DisabledTenantDirectory::class,
+            DisabledTenantMembershipAccess::class,
+        ], true)) {
+            return false;
+        }
+
         return $reflection->getClosureThis() !== $this->container
-            || ($variables['abstract'] ?? null) !== $contract
+            || ! in_array($variables['abstract'] ?? null, [$contract, str_replace('Nvl\\Support\\Tenancy\\', 'Nvl\\Tenancy\\', $contract)], true)
             || ($variables['concrete'] ?? null) !== $adapter;
     }
 

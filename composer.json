@@ -30,7 +30,10 @@
     "autoload": {
         "psr-4": {
             "Nvl\\Tenancy\\": "src/"
-        }
+        },
+        "files": [
+            "src/Support/LegacyNeutralAliases.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {

@@ -8,18 +8,20 @@ use Illuminate\Container\Container;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Application;
-use Nvl\Tenancy\Contracts\TenantDirectory;
-use Nvl\Tenancy\Contracts\TenantParentResolver;
-use Nvl\Tenancy\Enums\TenantResourceKind;
-use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
-use Nvl\Tenancy\ValueObjects\TenantResourceDefinition;
+use Nvl\Support\Tenancy\Contracts\TenantDirectory;
+use Nvl\Support\Tenancy\Contracts\TenantParentResolver;
+use Nvl\Support\Tenancy\Enums\TenantResourceKind;
+use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Services\EffectiveTenantConnection;
+use Nvl\Support\Tenancy\Services\TenantResourceRegistry;
+use Nvl\Support\Tenancy\ValueObjects\TenantResourceDefinition;
 
 /**
  * Derives structural ownership modes and deterministic per-resource adoption fingerprints.
  *
  * @internal
  */
-final readonly class TenantOwnershipConfiguration
+final readonly class TenantOwnershipConfiguration implements \Nvl\Support\Tenancy\Contracts\TenantOwnershipConfiguration
 {
     /**
      * Stateful runtime providers whose integration must explicitly register ownership and adoption.

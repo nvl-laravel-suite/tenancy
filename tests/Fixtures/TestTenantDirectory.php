@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Nvl\Tenancy\Tests\Fixtures;
 
 use LogicException;
-use Nvl\Tenancy\Contracts\TenantDirectory;
-use Nvl\Tenancy\Exceptions\TenantNotFound;
-use Nvl\Tenancy\ValueObjects\TenantDescriptor;
-use Nvl\Tenancy\ValueObjects\TenantId;
+use Nvl\Support\Tenancy\Contracts\TenantDirectory;
+use Nvl\Support\Tenancy\Exceptions\TenantNotFound;
+use Nvl\Support\Tenancy\ValueObjects\TenantDescriptor;
+use Nvl\Support\Tenancy\ValueObjects\TenantId;
 
 /**
  * Test-only host directory used to verify configured adapter contracts.

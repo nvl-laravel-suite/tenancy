@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Tests\Fixtures;
 
-use Nvl\Tenancy\Contracts\TenantDirectory;
-use Nvl\Tenancy\Exceptions\TenantNotFound;
-use Nvl\Tenancy\ValueObjects\TenantDescriptor;
-use Nvl\Tenancy\ValueObjects\TenantId;
+use Nvl\Support\Tenancy\Contracts\TenantDirectory;
+use Nvl\Support\Tenancy\Exceptions\TenantNotFound;
+use Nvl\Support\Tenancy\ValueObjects\TenantDescriptor;
+use Nvl\Support\Tenancy\ValueObjects\TenantId;
 
 /** Provides explicit directory entries for isolated tenancy tests. */
 final class ArrayTenantDirectory implements TenantDirectory

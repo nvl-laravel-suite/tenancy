@@ -587,3 +587,30 @@ must run in the captured tenant context. Native signed callback payloads receive
 recursive inert model checks while native signature verification remains in place.
 Arbitrary application `__unserialize()` implementations are trusted application code;
 this boundary does not sandbox code hidden inside custom serialized strings.
+
+## Shared consumer diagnostics
+
+Run `php artisan nvl:doctor --strict --format=json` to combine the read-only checks from loaded NVL package providers. Errors fail the gate, and strict mode also fails warnings. This package's existing Doctor command remains available and uses the same package-owned inspection service.
+
+
+### Neutral tenant boundaries
+
+Core owns `Nvl\Support\Tenancy` contracts, immutable identifiers and snapshots, queue envelopes, resource definitions, and the resource metadata registry. Packages consume `TenantBoundary`, `TenantContext`, `TenantRunner`, `TenantQueueContext`, `TenantInstallationState`, and `TenantOwnershipConfiguration` contracts from that namespace. Registering a neutral package registers Core; it does not select the enforcing Tenancy provider.
+
+Without `nvl/tenancy`, the disabled boundary preserves validated legacy queries and identity keys and supplies no ownership attributes. Tenant context is disabled, and requiring a tenant or privileged platform execution fails. The actual resource connection is checked for persisted adoption before access. Setting `tenancy.enabled=true` without the enforcing provider fails, and adopted storage cannot be reopened through disabled defaults. Queue admission runs before native command deserialization and rejects captured tenant work or adopted storage without the runtime.
+
+`nvl/tenancy` is suggested by neutral packages and required for their tenancy test profiles. Select its provider through Laravel discovery or register it explicitly to activate the runtime implementations. Merely having its classes on disk does not register adoption adapters. Billing continues to require the runtime.
+
+## Next major: isolated schema identities
+
+Use `tenancy.tables.<logical-key>` for every table and `tenancy.connection` for its database connection. Null connection inherits `nvl-core.connection`, then Laravel's default. Tables are resolved at runtime by the package table definition helper.
+
+| Logical key | New default | Previous name |
+| --- | --- | --- |
+| `tenants` | `nvl_tenancy_tenants` | `nvl_tenancy_tenants` |
+| `adoption_runs` | `nvl_tenancy_adoption_runs` | `nvl_tenancy_adoption_runs` |
+| `installation_state` | `nvl_tenancy_installation_state` | `nvl_tenancy_installation_state` |
+| `operations` | `nvl_tenancy_operations` | `nvl_tenancy_operations` |
+| `adoption_mappings` | `nvl_tenancy_adoption_mappings` | `nvl_tenancy_adoption_mappings` |
+
+Migration filenames contain `nvl_tenancy_`. Existing installations must complete the upgrade in `UPGRADING.md` before running new migrations. A pending creator rejects an existing target before any migration in the batch runs; legacy storage with old history needs an ownership decision.

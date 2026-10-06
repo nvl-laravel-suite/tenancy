@@ -7,7 +7,7 @@ namespace Nvl\Tenancy\Tests\Fixtures;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
-use Nvl\Tenancy\Contracts\TenantQueuedJob;
+use Nvl\Support\Tenancy\Contracts\TenantQueuedJob;
 
 /** Native queued notification fixture with a local recording channel. */
 final class ProbeTenantNotification extends Notification implements ShouldQueue, TenantQueuedJob

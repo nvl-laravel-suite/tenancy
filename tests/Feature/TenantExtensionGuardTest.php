@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Nvl\Tenancy\Services\TenantExtensionGuard;
+use Nvl\Support\Tenancy\Services\TenantExtensionGuard;
 
 it('accepts a base extension while tenancy is disabled', function (): void {
     $extension = new class implements Stringable

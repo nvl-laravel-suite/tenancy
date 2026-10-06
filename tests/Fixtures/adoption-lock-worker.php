@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Database\Capsule\Manager;
-use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
 use Nvl\Tenancy\Services\TenantAdoptionLock;
 
 require dirname(__DIR__, 5).'/vendor/autoload.php';

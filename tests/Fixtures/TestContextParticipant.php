@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Nvl\Tenancy\Tests\Fixtures;
 
 use Closure;
-use Nvl\Tenancy\Contracts\TenantContextParticipant;
-use Nvl\Tenancy\ValueObjects\TenantContextSnapshot;
+use Nvl\Support\Tenancy\Contracts\TenantContextParticipant;
+use Nvl\Support\Tenancy\ValueObjects\TenantContextSnapshot;
 
 /** Executes test-selected participant behavior against the real runner. */
 class TestContextParticipant implements TenantContextParticipant

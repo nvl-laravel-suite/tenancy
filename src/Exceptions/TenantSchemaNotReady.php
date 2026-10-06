@@ -4,23 +4,8 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Exceptions;
 
-use Illuminate\Http\Response;
-use Nvl\Tenancy\Enums\TenancyResponseCode;
+use Nvl\Support\Tenancy\Exceptions\TenantSchemaNotReady;
+use Nvl\Tenancy\Support\LegacyNeutralAlias;
 
-/**
- * Reports an unavailable or incomplete tenant ownership schema.
- */
-final class TenantSchemaNotReady extends TenancyException
-{
-    /**
-     * Create a schema-readiness failure.
-     */
-    public function __construct(string $message = 'Tenant schema is not ready.')
-    {
-        parent::__construct(
-            message: $message,
-            responseCode: TenancyResponseCode::TenantSchemaNotReady,
-            suggestedStatus: Response::HTTP_SERVICE_UNAVAILABLE,
-        );
-    }
-}
+/** @deprecated Use \Nvl\Support\Tenancy\Exceptions\TenantSchemaNotReady; retained for one major release. */
+LegacyNeutralAlias::register(TenantSchemaNotReady::class, 'Nvl\\Tenancy\\Exceptions\\TenantSchemaNotReady');

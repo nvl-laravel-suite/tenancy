@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Nvl\Tenancy\Tests\Fixtures;
 
 use Illuminate\Http\Request;
-use Nvl\Tenancy\Contracts\TenantHttpResolver;
-use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
-use Nvl\Tenancy\ValueObjects\TenantId;
+use Nvl\Support\Tenancy\Contracts\TenantHttpResolver;
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\ValueObjects\TenantId;
 
 /** Reconciles explicitly trusted route, header, and serving-host selectors in tests. */
 final class StrictTenantHttpResolver implements TenantHttpResolver

@@ -7,12 +7,12 @@ namespace Nvl\Tenancy\Http\Middleware;
 use Closure;
 use Illuminate\Container\Container;
 use Illuminate\Http\Request;
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\Exceptions\TenantInactive;
+use Nvl\Support\Tenancy\Exceptions\TenantNotFound;
+use Nvl\Support\Tenancy\Services\TenantSiteAttributes;
 use Nvl\Tenancy\Contracts\TenantSiteResolver;
-use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
-use Nvl\Tenancy\Exceptions\TenantInactive;
-use Nvl\Tenancy\Exceptions\TenantNotFound;
 use Nvl\Tenancy\Services\TenantRunner;
-use Nvl\Tenancy\ValueObjects\TenantSiteContext;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -36,16 +36,11 @@ final readonly class ResolvePublicTenant
             $site = $this->container->make(TenantSiteResolver::class)->resolve($request);
 
             return $this->runner->run($site->tenantId, function () use ($site, $request, $next): Response {
-                $previous = $request->attributes->get(TenantSiteContext::class);
-                $request->attributes->set(TenantSiteContext::class, $site);
+                $restore = TenantSiteAttributes::store($request, $site);
                 try {
                     return $next($request);
                 } finally {
-                    if ($previous === null) {
-                        $request->attributes->remove(TenantSiteContext::class);
-                    } else {
-                        $request->attributes->set(TenantSiteContext::class, $previous);
-                    }
+                    $restore();
                 }
             });
         } catch (TenantBoundaryViolation|TenantInactive|TenantNotFound $exception) {

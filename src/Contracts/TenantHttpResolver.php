@@ -4,16 +4,8 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Contracts;
 
-use Illuminate\Http\Request;
-use Nvl\Tenancy\ValueObjects\TenantId;
+use Nvl\Support\Tenancy\Contracts\TenantHttpResolver;
+use Nvl\Tenancy\Support\LegacyNeutralAlias;
 
-/**
- * Selects a candidate tenant from a trusted HTTP request boundary.
- */
-interface TenantHttpResolver
-{
-    /**
-     * Resolve a candidate tenant identifier from the request.
-     */
-    public function resolve(Request $request): TenantId;
-}
+/** @deprecated Use \Nvl\Support\Tenancy\Contracts\TenantHttpResolver; retained for one major release. */
+LegacyNeutralAlias::register(TenantHttpResolver::class, 'Nvl\\Tenancy\\Contracts\\TenantHttpResolver');

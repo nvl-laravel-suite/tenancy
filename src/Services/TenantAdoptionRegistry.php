@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Services;
 
+use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
 use Nvl\Tenancy\Contracts\TenantAdoptionAdapter;
-use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
 use ReflectionClass;
 
 /** Retains package-owned adoption adapter class names without scoped runtime state. */

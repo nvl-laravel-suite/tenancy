@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Nvl\Tenancy\Tests\Fixtures;
 
 use LogicException;
-use Nvl\Tenancy\Contracts\TenantDirectory;
-use Nvl\Tenancy\ValueObjects\TenantDescriptor;
-use Nvl\Tenancy\ValueObjects\TenantId;
+use Nvl\Support\Tenancy\Contracts\TenantDirectory;
+use Nvl\Support\Tenancy\ValueObjects\TenantDescriptor;
+use Nvl\Support\Tenancy\ValueObjects\TenantId;
 
 /**
  * Conflicting binding fixture that must never be constructed during validation.

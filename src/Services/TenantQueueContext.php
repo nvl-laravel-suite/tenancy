@@ -9,15 +9,17 @@ use Illuminate\Bus\BatchRepository;
 use Illuminate\Bus\PendingBatch;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Config\Repository;
-use Nvl\Tenancy\Contracts\TenantContext;
-use Nvl\Tenancy\Enums\TenantContextMode;
-use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
-use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Contracts\TenantContext;
+use Nvl\Support\Tenancy\Enums\TenantContextMode;
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Services\TenantQueuePayload;
+use Nvl\Support\Tenancy\Services\TenantResourceRegistry;
+use Nvl\Support\Tenancy\ValueObjects\TenantJobEnvelope;
 use Nvl\Tenancy\Queue\TenantDatabaseBatchRepository;
-use Nvl\Tenancy\ValueObjects\TenantJobEnvelope;
 
 /** Revalidates queued context against this worker's configuration and directory. */
-final class TenantQueueContext
+final class TenantQueueContext implements \Nvl\Support\Tenancy\Contracts\TenantQueueContext
 {
     /** Retain the application, never an old worker's scoped state. */
     public function __construct(private readonly Container $container) {}

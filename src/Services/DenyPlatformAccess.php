@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Services;
 
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\ValueObjects\PlatformOperation;
 use Nvl\Tenancy\Contracts\PlatformAccess;
-use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
-use Nvl\Tenancy\ValueObjects\PlatformOperation;
 
 /** Denies privileged operations until the host supplies explicit authorization. */
 final class DenyPlatformAccess implements PlatformAccess

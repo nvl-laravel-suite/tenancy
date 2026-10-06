@@ -8,11 +8,11 @@ use Illuminate\Contracts\Foundation\MaintenanceMode;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schema;
+use Nvl\Support\Tenancy\ValueObjects\PlatformOperation;
 use Nvl\Tenancy\Contracts\PlatformAccess;
 use Nvl\Tenancy\Providers\TenancyServiceProvider;
 use Nvl\Tenancy\Services\TenantAdoptionCoordinator;
 use Nvl\Tenancy\Services\TenantAdoptionRegistry;
-use Nvl\Tenancy\ValueObjects\PlatformOperation;
 use RuntimeException;
 
 /** Activates empty queue model storage through the real reviewed adoption protocol. */

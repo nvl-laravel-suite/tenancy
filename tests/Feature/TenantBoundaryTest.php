@@ -7,17 +7,20 @@ use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Nvl\Support\Tenancy\Enums\TenantResourceKind;
+use Nvl\Support\Tenancy\Enums\TenantStatus;
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Exceptions\TenantContextMissing;
+use Nvl\Support\Tenancy\Exceptions\TenantInactive;
+use Nvl\Support\Tenancy\Services\TenantResourceRegistry;
+use Nvl\Support\Tenancy\ValueObjects\PlatformOperation;
+use Nvl\Support\Tenancy\ValueObjects\TenantId;
+use Nvl\Support\Tenancy\ValueObjects\TenantResourceDefinition;
 use Nvl\Tenancy\Contracts\PlatformAccess;
-use Nvl\Tenancy\Enums\TenantResourceKind;
-use Nvl\Tenancy\Enums\TenantStatus;
-use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
-use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
-use Nvl\Tenancy\Exceptions\TenantContextMissing;
-use Nvl\Tenancy\Exceptions\TenantInactive;
 use Nvl\Tenancy\Services\TenantBoundary;
 use Nvl\Tenancy\Services\TenantInstallationState;
 use Nvl\Tenancy\Services\TenantMaintenanceRunner;
-use Nvl\Tenancy\Services\TenantResourceRegistry;
 use Nvl\Tenancy\Services\TenantRunner;
 use Nvl\Tenancy\Tests\Fixtures\AllowedParentResolver;
 use Nvl\Tenancy\Tests\Fixtures\F4InstallationFixture;
@@ -27,9 +30,6 @@ use Nvl\Tenancy\Tests\Fixtures\OwnedRecord;
 use Nvl\Tenancy\Tests\Fixtures\PolymorphicRecord;
 use Nvl\Tenancy\Tests\Fixtures\ProbeRestoredModel;
 use Nvl\Tenancy\Tests\Fixtures\TestPlatformAccess;
-use Nvl\Tenancy\ValueObjects\PlatformOperation;
-use Nvl\Tenancy\ValueObjects\TenantId;
-use Nvl\Tenancy\ValueObjects\TenantResourceDefinition;
 
 beforeEach(function (): void {
     Schema::create('tenancy_test_records', function (Blueprint $table): void {

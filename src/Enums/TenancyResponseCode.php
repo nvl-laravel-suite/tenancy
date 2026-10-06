@@ -4,17 +4,8 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Enums;
 
-use Nvl\Support\Contracts\ResponseCode;
+use Nvl\Support\Tenancy\Enums\TenancyResponseCode;
+use Nvl\Tenancy\Support\LegacyNeutralAlias;
 
-/**
- * Defines stable machine-readable codes for tenancy failures.
- */
-enum TenancyResponseCode: string implements ResponseCode
-{
-    case TenantContextMissing = 'tenant_context_missing';
-    case TenantNotFound = 'tenant_not_found';
-    case TenantInactive = 'tenant_inactive';
-    case TenantBoundaryViolation = 'tenant_boundary_violation';
-    case TenantConfigurationInvalid = 'tenant_configuration_invalid';
-    case TenantSchemaNotReady = 'tenant_schema_not_ready';
-}
+/** @deprecated Use \Nvl\Support\Tenancy\Enums\TenancyResponseCode; retained for one major release. */
+LegacyNeutralAlias::register(TenancyResponseCode::class, 'Nvl\\Tenancy\\Enums\\TenancyResponseCode');

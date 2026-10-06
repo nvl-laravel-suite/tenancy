@@ -4,13 +4,8 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Enums;
 
-/**
- * Identifies the isolation scope currently installed for tenant-aware work.
- */
-enum TenantContextMode: string
-{
-    case Disabled = 'disabled';
-    case Unresolved = 'unresolved';
-    case Tenant = 'tenant';
-    case Platform = 'platform';
-}
+use Nvl\Support\Tenancy\Enums\TenantContextMode;
+use Nvl\Tenancy\Support\LegacyNeutralAlias;
+
+/** @deprecated Use \Nvl\Support\Tenancy\Enums\TenantContextMode; retained for one major release. */
+LegacyNeutralAlias::register(TenantContextMode::class, 'Nvl\\Tenancy\\Enums\\TenantContextMode');

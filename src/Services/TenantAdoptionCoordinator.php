@@ -10,13 +10,14 @@ use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Foundation\MaintenanceMode;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Str;
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Exceptions\TenantSchemaNotReady;
+use Nvl\Support\Tenancy\Services\EffectiveTenantConnection;
+use Nvl\Support\Tenancy\ValueObjects\PlatformOperation;
 use Nvl\Tenancy\Contracts\PlatformAccess;
 use Nvl\Tenancy\Contracts\TenantAdoptionAdapter;
 use Nvl\Tenancy\Definitions\Tables\TenancyTables;
-use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
-use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
-use Nvl\Tenancy\Exceptions\TenantSchemaNotReady;
-use Nvl\Tenancy\ValueObjects\PlatformOperation;
 use Nvl\Tenancy\ValueObjects\TenantAdoptionPlan;
 use Nvl\Tenancy\ValueObjects\TenantAssignment;
 use Nvl\Tenancy\ValueObjects\TenantVerification;
@@ -65,15 +66,15 @@ final readonly class TenantAdoptionCoordinator
             }
             try {
                 $plan = $this->scope->preparation($id, fn () => $connection->transaction(function () use ($id, $configurationHash, $graph, $checkpoints, $mappings, $connection): TenantAdoptionPlan {
-                    $connection->table(TenancyTables::AdoptionRuns)->insert([
+                    $connection->table(TenancyTables::get(TenancyTables::AdoptionRuns))->insert([
                         'id' => $id, 'status' => 'prepared', 'mapping_hash' => hash('sha256', ''), 'configuration_hash' => $configurationHash,
                         'packages' => json_encode($graph['packages'], JSON_THROW_ON_ERROR), 'checkpoints' => json_encode($checkpoints, JSON_THROW_ON_ERROR),
                         'created_at' => now(), 'updated_at' => now(),
                     ]);
                     $mappingHash = $this->store->ingest($id, $mappings, $graph);
-                    $connection->table(TenancyTables::AdoptionRuns)->where('id', $id)->update(['mapping_hash' => $mappingHash]);
+                    $connection->table(TenancyTables::get(TenancyTables::AdoptionRuns))->where('id', $id)->update(['mapping_hash' => $mappingHash]);
                     foreach ($graph['resources'] as $resource) {
-                        $connection->table(TenancyTables::InstallationState)->updateOrInsert(['resource' => $resource], [
+                        $connection->table(TenancyTables::get(TenancyTables::InstallationState))->updateOrInsert(['resource' => $resource], [
                             'schema_version' => 1, 'state' => 'prepared', 'configuration_hash' => $this->ownership->fingerprint($resource),
                             'run_id' => $id, 'created_at' => now(), 'updated_at' => now(),
                         ]);
@@ -168,7 +169,7 @@ final readonly class TenantAdoptionCoordinator
             $this->validated($plan);
             $this->assertCallbackBoundary($connection, $pdo, true, true);
             $connection->transaction(function () use ($plan, $checkpoints): void {
-                $this->connections->core()->table(TenancyTables::InstallationState)->where('run_id', $plan->id)->update(['state' => 'active', 'updated_at' => now()]);
+                $this->connections->core()->table(TenancyTables::get(TenancyTables::InstallationState))->where('run_id', $plan->id)->update(['state' => 'active', 'updated_at' => now()]);
                 $this->store->checkpoint($plan->id, 'active', $checkpoints);
             });
             $this->installation->invalidate();
@@ -208,10 +209,10 @@ final readonly class TenantAdoptionCoordinator
     private function assertNoInterruptedRun(array $graph): void
     {
         $connection = $this->connections->core();
-        if ($connection->table(TenancyTables::InstallationState)->whereIn('resource', $graph['resources'])->where('state', '!=', 'active')->exists()) {
+        if ($connection->table(TenancyTables::get(TenancyTables::InstallationState))->whereIn('resource', $graph['resources'])->where('state', '!=', 'active')->exists()) {
             throw new TenantSchemaNotReady('A selected resource has an interrupted adoption; resume its original run.');
         }
-        foreach ($connection->table(TenancyTables::AdoptionRuns)->where('status', '!=', 'active')->get() as $run) {
+        foreach ($connection->table(TenancyTables::get(TenancyTables::AdoptionRuns))->where('status', '!=', 'active')->get() as $run) {
             if (! is_string($run->packages)) {
                 throw new TenantConfigurationInvalid('Invalid adoption package history.');
             }
@@ -238,7 +239,7 @@ final readonly class TenantAdoptionCoordinator
             || ! in_array($run['status'], ['prepared', 'backfilling', 'backfilled', 'activating', 'active'], true)) {
             throw new TenantConfigurationInvalid('The adoption input, adapter graph, or ownership configuration changed.');
         }
-        $markers = $this->connections->core()->table(TenancyTables::InstallationState)->where('run_id', $plan->id)->get();
+        $markers = $this->connections->core()->table(TenancyTables::get(TenancyTables::InstallationState))->where('run_id', $plan->id)->get();
         if ($markers->count() !== count($graph['resources'])) {
             throw new TenantSchemaNotReady('The adoption run no longer owns its complete resource graph.');
         }

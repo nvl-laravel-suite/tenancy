@@ -4,12 +4,8 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Enums;
 
-/**
- * Describes the lifecycle state of a tenant directory entry.
- */
-enum TenantStatus: string
-{
-    case Active = 'active';
-    case Suspended = 'suspended';
-    case Deleted = 'deleted';
-}
+use Nvl\Support\Tenancy\Enums\TenantStatus;
+use Nvl\Tenancy\Support\LegacyNeutralAlias;
+
+/** @deprecated Use \Nvl\Support\Tenancy\Enums\TenantStatus; retained for one major release. */
+LegacyNeutralAlias::register(TenantStatus::class, 'Nvl\\Tenancy\\Enums\\TenantStatus');

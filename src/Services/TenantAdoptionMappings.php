@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Services;
 
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Services\EffectiveTenantConnection;
+use Nvl\Support\Tenancy\ValueObjects\TenantId;
 use Nvl\Tenancy\Definitions\Tables\TenancyTables;
-use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
-use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
 use Nvl\Tenancy\ValueObjects\TenantAdoptionPlan;
 use Nvl\Tenancy\ValueObjects\TenantAssignment;
-use Nvl\Tenancy\ValueObjects\TenantId;
 use stdClass;
 
 /** Reads explicit immutable reviewed assignments without ordinary tenant scopes. */
@@ -35,7 +36,7 @@ final readonly class TenantAdoptionMappings
         if ($limit < 1 || $limit > 10000) {
             throw new TenantConfigurationInvalid('Assignment limits must be between 1 and 10000.');
         }
-        $query = $this->connections->core()->table(TenancyTables::AdoptionMappings)->where('run_id', $plan->id)->where('resource', $resource)->orderBy('record_id');
+        $query = $this->connections->core()->table(TenancyTables::get(TenancyTables::AdoptionMappings))->where('run_id', $plan->id)->where('resource', $resource)->orderBy('record_id');
         if ($afterRecordId !== null) {
             $query->where('record_id', '>', $afterRecordId);
         }
@@ -53,7 +54,7 @@ final readonly class TenantAdoptionMappings
     private function assignment(TenantAdoptionPlan $plan, string $resource, string $recordId): TenantAssignment
     {
         $this->assertPlan($plan);
-        $row = $this->connections->core()->table(TenancyTables::AdoptionMappings)->where('run_id', $plan->id)->where('resource', $resource)->where('record_id', $recordId)->first();
+        $row = $this->connections->core()->table(TenancyTables::get(TenancyTables::AdoptionMappings))->where('run_id', $plan->id)->where('resource', $resource)->where('record_id', $recordId)->first();
         if ($row === null) {
             throw new TenantBoundaryViolation('The record has no reviewed tenant assignment.');
         }
@@ -65,7 +66,7 @@ final readonly class TenantAdoptionMappings
     private function assertPlan(TenantAdoptionPlan $plan): void
     {
         $connection = $this->connections->core();
-        $run = $connection->table(TenancyTables::AdoptionRuns)->where('id', $plan->id)->first();
+        $run = $connection->table(TenancyTables::get(TenancyTables::AdoptionRuns))->where('id', $plan->id)->first();
         if ($plan->connection !== $connection->getName() || $run === null || $run->mapping_hash !== $plan->mappingHash || $run->configuration_hash !== $plan->configurationHash) {
             throw new TenantBoundaryViolation('The adoption plan does not match persisted input.');
         }

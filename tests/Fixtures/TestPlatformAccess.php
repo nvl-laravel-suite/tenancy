@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Tests\Fixtures;
 
+use Nvl\Support\Tenancy\ValueObjects\PlatformOperation;
 use Nvl\Tenancy\Contracts\PlatformAccess;
-use Nvl\Tenancy\ValueObjects\PlatformOperation;
 
 /** Explicitly authorizes and records privileged operations in isolated tests. */
 final class TestPlatformAccess implements PlatformAccess

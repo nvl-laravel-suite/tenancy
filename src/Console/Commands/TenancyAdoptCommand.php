@@ -8,12 +8,12 @@ use Generator;
 use Illuminate\Console\Command;
 use InvalidArgumentException;
 use JsonException;
-use Nvl\Tenancy\Exceptions\TenancyException;
-use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Exceptions\TenancyException;
+use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\ValueObjects\PlatformOperation;
+use Nvl\Support\Tenancy\ValueObjects\TenantId;
 use Nvl\Tenancy\Services\TenantAdoptionCoordinator;
-use Nvl\Tenancy\ValueObjects\PlatformOperation;
 use Nvl\Tenancy\ValueObjects\TenantAssignment;
-use Nvl\Tenancy\ValueObjects\TenantId;
 
 /** Runs reviewed maintenance adoption phases; actor options never replace host authorization. */
 final class TenancyAdoptCommand extends Command

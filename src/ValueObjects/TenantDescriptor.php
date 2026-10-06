@@ -4,18 +4,8 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\ValueObjects;
 
-use Nvl\Tenancy\Enums\TenantStatus;
+use Nvl\Support\Tenancy\ValueObjects\TenantDescriptor;
+use Nvl\Tenancy\Support\LegacyNeutralAlias;
 
-/**
- * Describes one immutable tenant directory entry.
- */
-final readonly class TenantDescriptor
-{
-    /**
-     * Create a tenant directory descriptor.
-     */
-    public function __construct(
-        public TenantId $id,
-        public TenantStatus $status,
-    ) {}
-}
+/** @deprecated Use \Nvl\Support\Tenancy\ValueObjects\TenantDescriptor; retained for one major release. */
+LegacyNeutralAlias::register(TenantDescriptor::class, 'Nvl\\Tenancy\\ValueObjects\\TenantDescriptor');

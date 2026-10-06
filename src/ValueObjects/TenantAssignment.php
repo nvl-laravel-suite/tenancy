@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\ValueObjects;
 
+use Nvl\Support\Tenancy\ValueObjects\TenantId;
+
 /** Carries one explicit reviewed record owner and package-validated metadata. */
 final readonly class TenantAssignment
 {

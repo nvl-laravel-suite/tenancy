@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Nvl\Tenancy\Services;
 
 use Illuminate\Contracts\Auth\Authenticatable;
-use Nvl\Tenancy\Contracts\TenantMembershipAccess;
-use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
-use Nvl\Tenancy\ValueObjects\TenantId;
+use Nvl\Support\Tenancy\Contracts\TenantMembershipAccess;
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\ValueObjects\TenantId;
 
 /** Denies membership until the host supplies explicit authorization. */
 final class DenyTenantMembershipAccess implements TenantMembershipAccess

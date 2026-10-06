@@ -4,23 +4,8 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Exceptions;
 
-use Illuminate\Http\Response;
-use Nvl\Tenancy\Enums\TenancyResponseCode;
+use Nvl\Support\Tenancy\Exceptions\TenantContextMissing;
+use Nvl\Tenancy\Support\LegacyNeutralAlias;
 
-/**
- * Reports tenant work attempted without an active tenant scope.
- */
-final class TenantContextMissing extends TenancyException
-{
-    /**
-     * Create a missing-context failure.
-     */
-    public function __construct(string $message = 'Tenant context is not resolved.')
-    {
-        parent::__construct(
-            message: $message,
-            responseCode: TenancyResponseCode::TenantContextMissing,
-            suggestedStatus: Response::HTTP_CONFLICT,
-        );
-    }
-}
+/** @deprecated Use \Nvl\Support\Tenancy\Exceptions\TenantContextMissing; retained for one major release. */
+LegacyNeutralAlias::register(TenantContextMissing::class, 'Nvl\\Tenancy\\Exceptions\\TenantContextMissing');

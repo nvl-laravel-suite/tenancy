@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Nvl\Tenancy\Tests\Fixtures;
 
 use Illuminate\Support\ServiceProvider;
-use Nvl\Tenancy\Services\TenantResourceRegistry;
-use Nvl\Tenancy\ValueObjects\TenantResourceDefinition;
+use Nvl\Support\Tenancy\Services\TenantResourceRegistry;
+use Nvl\Support\Tenancy\ValueObjects\TenantResourceDefinition;
 
 /** Registers fixture integration metadata after the Tenancy provider boots. */
 final class LateResourceProvider extends ServiceProvider

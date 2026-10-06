@@ -4,23 +4,8 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Exceptions;
 
-use Illuminate\Http\Response;
-use Nvl\Tenancy\Enums\TenancyResponseCode;
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Tenancy\Support\LegacyNeutralAlias;
 
-/**
- * Reports a record or operation outside the active ownership boundary.
- */
-final class TenantBoundaryViolation extends TenancyException
-{
-    /**
-     * Create an ownership-boundary failure.
-     */
-    public function __construct(string $message = 'Tenant resource is outside the active context.')
-    {
-        parent::__construct(
-            message: $message,
-            responseCode: TenancyResponseCode::TenantBoundaryViolation,
-            suggestedStatus: Response::HTTP_NOT_FOUND,
-        );
-    }
-}
+/** @deprecated Use \Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation; retained for one major release. */
+LegacyNeutralAlias::register(TenantBoundaryViolation::class, 'Nvl\\Tenancy\\Exceptions\\TenantBoundaryViolation');

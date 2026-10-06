@@ -6,18 +6,18 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Nvl\Support\Config\PackageConfigurationMerger;
-use Nvl\Tenancy\Contracts\TenantDirectory;
-use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Contracts\TenantDirectory;
+use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Services\EffectiveTenantConnection;
+use Nvl\Support\Tenancy\Services\TenantResourceRegistry;
+use Nvl\Support\Tenancy\ValueObjects\TenantResourceDefinition;
 use Nvl\Tenancy\Providers\TenancyServiceProvider;
-use Nvl\Tenancy\Services\EffectiveTenantConnection;
 use Nvl\Tenancy\Services\TenancyConfiguration;
 use Nvl\Tenancy\Services\TenantAdoptionRegistry;
 use Nvl\Tenancy\Services\TenantOwnershipConfiguration;
-use Nvl\Tenancy\Services\TenantResourceRegistry;
 use Nvl\Tenancy\Tests\Fixtures\EmptyAdoptionAdapter;
 use Nvl\Tenancy\Tests\Fixtures\OwnedRecord;
 use Nvl\Tenancy\Tests\Fixtures\TestTenantDirectory;
-use Nvl\Tenancy\ValueObjects\TenantResourceDefinition;
 
 it('derives application ownership and accepts compatible explicit platform families without probing SQL', function (): void {
     DB::connection()->enableQueryLog();

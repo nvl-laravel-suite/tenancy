@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Services;
 
-use Nvl\Tenancy\Contracts\TenantDirectory;
+use Nvl\Support\Tenancy\Contracts\TenantDirectory;
+use Nvl\Support\Tenancy\Enums\TenantStatus;
+use Nvl\Support\Tenancy\Exceptions\TenantNotFound;
+use Nvl\Support\Tenancy\Exceptions\TenantSchemaNotReady;
+use Nvl\Support\Tenancy\Services\EffectiveTenantConnection;
+use Nvl\Support\Tenancy\ValueObjects\TenantDescriptor;
+use Nvl\Support\Tenancy\ValueObjects\TenantId;
 use Nvl\Tenancy\Definitions\Tables\TenancyTables;
-use Nvl\Tenancy\Enums\TenantStatus;
-use Nvl\Tenancy\Exceptions\TenantNotFound;
-use Nvl\Tenancy\Exceptions\TenantSchemaNotReady;
-use Nvl\Tenancy\ValueObjects\TenantDescriptor;
-use Nvl\Tenancy\ValueObjects\TenantId;
 
 /** Reads the package-owned canonical directory without requiring production models. */
 final readonly class PackageTenantDirectory implements TenantDirectory
@@ -22,10 +23,10 @@ final readonly class PackageTenantDirectory implements TenantDirectory
     public function find(TenantId $tenant): TenantDescriptor
     {
         $connection = $this->connections->core();
-        if (! $connection->getSchemaBuilder()->hasTable(TenancyTables::Tenants)) {
+        if (! $connection->getSchemaBuilder()->hasTable(TenancyTables::get(TenancyTables::Tenants))) {
             throw new TenantSchemaNotReady('The tenant directory store is not installed.');
         }
-        $row = $connection->table(TenancyTables::Tenants)->where('id', $tenant->value)->first(['id', 'status']);
+        $row = $connection->table(TenancyTables::get(TenancyTables::Tenants))->where('id', $tenant->value)->first(['id', 'status']);
         if ($row === null) {
             throw new TenantNotFound;
         }

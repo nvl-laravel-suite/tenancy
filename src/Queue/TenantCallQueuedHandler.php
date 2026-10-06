@@ -8,15 +8,15 @@ use Closure;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Queue\Job;
 use Illuminate\Queue\CallQueuedHandler;
-use Nvl\Tenancy\Enums\TenantContextMode;
-use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\Enums\TenantContextMode;
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\Services\TenantQueuePayload;
+use Nvl\Support\Tenancy\ValueObjects\TenantContextSnapshot;
+use Nvl\Support\Tenancy\ValueObjects\TenantJobEnvelope;
 use Nvl\Tenancy\Services\TenantGlobalJobRegistry;
 use Nvl\Tenancy\Services\TenantQueueCarrier;
 use Nvl\Tenancy\Services\TenantQueueCommand;
 use Nvl\Tenancy\Services\TenantQueueContext;
-use Nvl\Tenancy\Services\TenantQueuePayload;
-use Nvl\Tenancy\ValueObjects\TenantContextSnapshot;
-use Nvl\Tenancy\ValueObjects\TenantJobEnvelope;
 
 /** Restores the boundary before Laravel deserializes either execution or failure commands. @internal */
 class TenantCallQueuedHandler extends CallQueuedHandler

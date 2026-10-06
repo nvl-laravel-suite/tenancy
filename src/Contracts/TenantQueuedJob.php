@@ -4,11 +4,8 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Contracts;
 
-use Nvl\Tenancy\ValueObjects\TenantJobEnvelope;
+use Nvl\Support\Tenancy\Contracts\TenantQueuedJob;
+use Nvl\Tenancy\Support\LegacyNeutralAlias;
 
-/** A queued tenant command captures this immutable envelope before native dispatch scheduling. */
-interface TenantQueuedJob
-{
-    /** Return the envelope captured when the command was constructed in its producer scope. */
-    public function tenantJobEnvelope(): TenantJobEnvelope;
-}
+/** @deprecated Use \Nvl\Support\Tenancy\Contracts\TenantQueuedJob; retained for one major release. */
+LegacyNeutralAlias::register(TenantQueuedJob::class, 'Nvl\\Tenancy\\Contracts\\TenantQueuedJob');

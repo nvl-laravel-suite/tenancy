@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Nvl\Tenancy\Tests\Fixtures;
 
 use Illuminate\Database\Eloquent\Model;
-use Nvl\Tenancy\Contracts\TenantParentResolver;
+use Nvl\Support\Tenancy\Contracts\TenantParentResolver;
 
 /** Restricts fixture polymorphic ownership independently of the global resource registry. */
 final class AllowedParentResolver implements TenantParentResolver

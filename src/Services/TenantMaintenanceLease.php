@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Nvl\Tenancy\Services;
 
 use Closure;
-use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
-use Nvl\Tenancy\ValueObjects\TenantId;
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\ValueObjects\TenantId;
 
 /**
  * Holds the synchronous, tenant-specific recovery capability for one application scope.

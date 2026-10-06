@@ -8,24 +8,25 @@ use Illuminate\Database\Schema\Builder;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Nvl\Support\Tenancy\Contracts\TenantDirectory;
+use Nvl\Support\Tenancy\Enums\TenantStatus;
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Exceptions\TenantInactive;
+use Nvl\Support\Tenancy\Exceptions\TenantNotFound;
+use Nvl\Support\Tenancy\Services\EffectiveTenantConnection;
+use Nvl\Support\Tenancy\ValueObjects\PlatformOperation;
+use Nvl\Support\Tenancy\ValueObjects\TenantId;
 use Nvl\Tenancy\Actions\ChangeTenantStatusAction;
 use Nvl\Tenancy\Actions\ProvisionTenantAction;
 use Nvl\Tenancy\Contracts\PlatformAccess;
-use Nvl\Tenancy\Contracts\TenantDirectory;
-use Nvl\Tenancy\Enums\TenantStatus;
-use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
-use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
-use Nvl\Tenancy\Exceptions\TenantInactive;
-use Nvl\Tenancy\Exceptions\TenantNotFound;
+use Nvl\Tenancy\Models\Tenant;
 use Nvl\Tenancy\Providers\TenancyServiceProvider;
 use Nvl\Tenancy\Services\DenyPlatformAccess;
-use Nvl\Tenancy\Services\EffectiveTenantConnection;
 use Nvl\Tenancy\Services\TenantRunner;
 use Nvl\Tenancy\Tests\Fixtures\ArrayTenantDirectory;
 use Nvl\Tenancy\Tests\Fixtures\InMemoryMaintenanceMode;
 use Nvl\Tenancy\Tests\Fixtures\TestPlatformAccess;
-use Nvl\Tenancy\ValueObjects\PlatformOperation;
-use Nvl\Tenancy\ValueObjects\TenantId;
 
 /** @return list<string> */
 function tenancyCoreTables(): array
@@ -58,6 +59,17 @@ function registerAndRunTenancyCoreMigrations(): void
 
 beforeEach(function (): void {
     app()->instance(MaintenanceMode::class, new InMemoryMaintenanceMode);
+});
+
+it('inherits the suite connection consistently across runtime model and migration boundaries', function (): void {
+    config()->set('database.connections.suite_core', config('database.connections.sqlite'));
+    config()->set('nvl-core.connection', 'suite_core');
+    config()->set('tenancy.connection', null);
+    $migration = require glob(__DIR__.'/../../database/migrations/tenancy/*.php')[0];
+    expect(app(EffectiveTenantConnection::class)->core()->getName())->toBe('suite_core')
+        ->and((new Tenant)->getConnectionName())->toBe('suite_core')
+        ->and($migration->getConnection())->toBe('suite_core');
+    expect((new Tenant)->setConnection('sqlite')->getConnectionName())->toBe('sqlite');
 });
 
 it('keeps the core schema absent from default and feature-only migrations', function (bool $featureEnabled): void {

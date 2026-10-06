@@ -8,14 +8,15 @@ use Illuminate\Bus\BatchRepository;
 use Illuminate\Container\Container;
 use Illuminate\Queue\CallQueuedHandler;
 use Illuminate\Queue\Queue;
-use Nvl\Tenancy\Contracts\TenantContext;
-use Nvl\Tenancy\Enums\TenantContextMode;
-use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
-use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Contracts\TenantContext;
+use Nvl\Support\Tenancy\Enums\TenantContextMode;
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Services\TenantQueuePayload;
+use Nvl\Support\Tenancy\ValueObjects\TenantContextSnapshot;
+use Nvl\Support\Tenancy\ValueObjects\TenantJobEnvelope;
 use Nvl\Tenancy\Queue\TenantCallQueuedHandler;
 use Nvl\Tenancy\Queue\TenantDatabaseBatchRepository;
-use Nvl\Tenancy\ValueObjects\TenantContextSnapshot;
-use Nvl\Tenancy\ValueObjects\TenantJobEnvelope;
 
 /**
  * Registers the synchronous recovery guard without capturing an application in static hooks.

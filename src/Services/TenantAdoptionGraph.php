@@ -6,10 +6,12 @@ namespace Nvl\Tenancy\Services;
 
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Config\Repository;
+use Nvl\Support\Tenancy\Contracts\TenantDirectory;
+use Nvl\Support\Tenancy\Enums\TenantResourceKind;
+use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Services\EffectiveTenantConnection;
+use Nvl\Support\Tenancy\Services\TenantResourceRegistry;
 use Nvl\Tenancy\Contracts\TenantAdoptionAdapter;
-use Nvl\Tenancy\Contracts\TenantDirectory;
-use Nvl\Tenancy\Enums\TenantResourceKind;
-use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
 
 /**
  * Resolves package adapter ownership and dependency ordering on the canonical connection.

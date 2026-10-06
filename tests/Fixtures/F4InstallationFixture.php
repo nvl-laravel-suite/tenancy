@@ -7,10 +7,10 @@ namespace Nvl\Tenancy\Tests\Fixtures;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Nvl\Support\Tenancy\ValueObjects\TenantId;
 use Nvl\Tenancy\Providers\TenancyServiceProvider;
 use Nvl\Tenancy\Services\TenantInstallationState;
 use Nvl\Tenancy\Services\TenantOwnershipConfiguration;
-use Nvl\Tenancy\ValueObjects\TenantId;
 
 /** Creates real isolated F4 installation markers before the coordinator exists. */
 final class F4InstallationFixture

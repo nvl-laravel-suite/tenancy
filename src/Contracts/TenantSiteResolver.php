@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Nvl\Tenancy\Contracts;
 
 use Illuminate\Http\Request;
-use Nvl\Tenancy\ValueObjects\TenantSiteContext;
+use Nvl\Support\Tenancy\ValueObjects\TenantSiteContext;
 
 /**
  * Resolves a verified tenant and site context for public requests.

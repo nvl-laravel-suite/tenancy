@@ -4,15 +4,17 @@ declare(strict_types=1);
 
 use Illuminate\Config\Repository;
 use Illuminate\Support\Facades\Schema;
-use Nvl\Tenancy\Contracts\TenantContext;
-use Nvl\Tenancy\Contracts\TenantDirectory;
-use Nvl\Tenancy\Enums\TenantContextMode;
-use Nvl\Tenancy\Exceptions\TenantBoundaryViolation;
-use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
-use Nvl\Tenancy\Exceptions\TenantContextMissing;
-use Nvl\Tenancy\Exceptions\TenantInactive;
-use Nvl\Tenancy\Exceptions\TenantNotFound;
-use Nvl\Tenancy\Exceptions\TenantSchemaNotReady;
+use Nvl\Support\Tenancy\Contracts\TenantContext;
+use Nvl\Support\Tenancy\Contracts\TenantDirectory;
+use Nvl\Support\Tenancy\Enums\TenantContextMode;
+use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
+use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Exceptions\TenantContextMissing;
+use Nvl\Support\Tenancy\Exceptions\TenantInactive;
+use Nvl\Support\Tenancy\Exceptions\TenantNotFound;
+use Nvl\Support\Tenancy\Exceptions\TenantSchemaNotReady;
+use Nvl\Support\Tenancy\ValueObjects\TenantContextSnapshot;
+use Nvl\Support\Tenancy\ValueObjects\TenantId;
 use Nvl\Tenancy\Providers\TenancyServiceProvider;
 use Nvl\Tenancy\Services\ScopedTenantContext;
 use Nvl\Tenancy\Services\TenancyConfiguration;
@@ -20,8 +22,6 @@ use Nvl\Tenancy\Services\TenantOwnershipConfiguration;
 use Nvl\Tenancy\Tests\Fixtures\AbstractTestTenantDirectory;
 use Nvl\Tenancy\Tests\Fixtures\ConflictingTestTenantDirectory;
 use Nvl\Tenancy\Tests\Fixtures\TestTenantDirectory;
-use Nvl\Tenancy\ValueObjects\TenantContextSnapshot;
-use Nvl\Tenancy\ValueObjects\TenantId;
 
 it('registers the library without activating tenancy or installing schema', function (): void {
     expect(app(TenantContext::class)->snapshot()->mode)->toBe(TenantContextMode::Disabled)
@@ -79,6 +79,11 @@ it('ships the frozen inert configuration defaults', function (): void {
             'templates' => 'none',
         ],
         'migrations' => ['enabled' => false],
+        'tables' => ['tenants' => 'nvl_tenancy_tenants', 'adoption_runs' => 'nvl_tenancy_adoption_runs', 'installation_state' => 'nvl_tenancy_installation_state', 'operations' => 'nvl_tenancy_operations', 'adoption_mappings' => 'nvl_tenancy_adoption_mappings'],
+        'queue' => ['connection' => null, 'name' => null],
+        'locks' => ['store' => null],
+        'routes' => ['middleware' => null],
+        'authorization' => ['guard' => null],
     ]);
 });
 
@@ -97,7 +102,7 @@ it('rejects invalid deployment configuration', function (string $path, mixed $va
     'unknown family' => ['tenancy.resources.media', 'tenant', 'Unknown tenancy resource family [media].'],
     'invalid sharing' => ['tenancy.sharing.media', 'shared', 'Unsupported tenancy sharing mode [shared] for [media].'],
     'cached closure' => ['tenancy.resolvers.http', static fn (): null => null, 'Tenancy configuration must not contain closures.'],
-    'invalid adapter class' => ['tenancy.directory.adapter', stdClass::class, 'Configured adapter [stdClass] must implement [Nvl\\Tenancy\\Contracts\\TenantDirectory].'],
+    'invalid adapter class' => ['tenancy.directory.adapter', stdClass::class, 'Configured adapter [stdClass] must implement [Nvl\\Support\\Tenancy\\Contracts\\TenantDirectory].'],
 ]);
 
 it('accepts a valid explicit host directory class without resolving it', function (): void {
@@ -146,7 +151,7 @@ it('rejects a genuinely conflicting host binding without constructing it', funct
     expect(fn (): null => app(TenancyConfiguration::class)->validate())
         ->toThrow(
             TenantConfigurationInvalid::class,
-            'tenancy.directory.adapter conflicts with an existing host binding for [Nvl\\Tenancy\\Contracts\\TenantDirectory].',
+            'tenancy.directory.adapter conflicts with an existing host binding for [Nvl\\Support\\Tenancy\\Contracts\\TenantDirectory].',
         )
         ->and(app()->resolved(ConflictingTestTenantDirectory::class))->toBeFalse();
 });
@@ -160,7 +165,7 @@ it('rejects non-instantiable configured adapters', function (string $adapter): v
     expect(fn (): null => app(TenancyConfiguration::class)->validate())
         ->toThrow(
             TenantConfigurationInvalid::class,
-            "Configured adapter [{$adapter}] must be an instantiable class implementing [Nvl\\Tenancy\\Contracts\\TenantDirectory].",
+            "Configured adapter [{$adapter}] must be an instantiable class implementing [Nvl\\Support\\Tenancy\\Contracts\\TenantDirectory].",
         );
 })->with([
     'interface' => TenantDirectory::class,

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Nvl\Tenancy\Tests\Fixtures;
 
 use Illuminate\Database\Eloquent\Model;
-use Nvl\Tenancy\Contracts\TenantParentResolver;
+use Nvl\Support\Tenancy\Contracts\TenantParentResolver;
 
 /** Supplies explicit test-only parent graphs for recursive ownership validation. */
 final readonly class ParentTypesResolver implements TenantParentResolver

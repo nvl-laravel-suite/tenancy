@@ -7,7 +7,7 @@ namespace Nvl\Tenancy\Services;
 use Closure;
 use Illuminate\Bus\Dispatcher as NativeDispatcher;
 use Illuminate\Contracts\Bus\Dispatcher as DispatcherContract;
-use Nvl\Tenancy\Exceptions\TenantConfigurationInvalid;
+use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
 use ReflectionProperty;
 
 /** Preserves native host response scheduling while synchronous privileged callbacks are fenced. @internal */

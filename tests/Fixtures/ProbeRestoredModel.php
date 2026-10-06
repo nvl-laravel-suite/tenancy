@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Nvl\Tenancy\Tests\Fixtures;
 
 use Illuminate\Support\Facades\DB;
-use Nvl\Tenancy\Contracts\TenantContext;
+use Nvl\Support\Tenancy\Contracts\TenantContext;
 
 /** Canonical resource carried through Laravel's normally unscoped restoration path. */
 class ProbeRestoredModel extends OwnedRecord

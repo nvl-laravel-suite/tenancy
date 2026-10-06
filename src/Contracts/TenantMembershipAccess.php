@@ -4,16 +4,8 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Contracts;
 
-use Illuminate\Contracts\Auth\Authenticatable;
-use Nvl\Tenancy\ValueObjects\TenantId;
+use Nvl\Support\Tenancy\Contracts\TenantMembershipAccess;
+use Nvl\Tenancy\Support\LegacyNeutralAlias;
 
-/**
- * Authorizes an authenticated actor for one selected tenant.
- */
-interface TenantMembershipAccess
-{
-    /**
-     * Assert that an actor belongs to the selected tenant.
-     */
-    public function assertMember(Authenticatable $actor, TenantId $tenant): void;
-}
+/** @deprecated Use \Nvl\Support\Tenancy\Contracts\TenantMembershipAccess; retained for one major release. */
+LegacyNeutralAlias::register(TenantMembershipAccess::class, 'Nvl\\Tenancy\\Contracts\\TenantMembershipAccess');
