@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "package": "nvl/tenancy",
+  "documentation": "docs/events.md",
+  "implementation_status": "implemented; executable acceptance proof pending",
+  "events": [],
+  "value_types": [],
+  "aliases": [],
+  "publication": null,
+  "security_notes": [
+    "This package declares no domain events."
+  ],
+  "no_op_semantics": "No package domain events are declared.",
+  "notes": [],
+  "no_events_reason": "Context/resolution/queue ownership infrastructure declares no domain events. Neutral runtime types live in Core."
+}

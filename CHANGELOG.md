@@ -1,11 +1,19 @@
 # Changelog
 
+## Unreleased — consumer runtime integration
+
+- Added focused consumer contract/testing guidance and shipped-factory usage limits.
+- Versioned committed event payloads and documented canonical aliases, source connections, failure metadata and optional safe rendering.
+- Added explicit first-use/installer and deployment guidance; new acceptance checks remain pending.
+
+
 All notable changes to `nvl/tenancy` are documented here.
 
 ## [Unreleased]
 
 ### Changed
 
+- Both platform workflows gain focused contracts. Neutral Core contracts, effective host adapter identity, compatibility aliases, security, and inactive-by-default behavior are preserved. Document contract substitution and truthful host fixtures in Testing your app.
 - Classify the supported consumer PHP surface with explicit source annotations and restrict package model handles to declared identity and in-memory read fields; preserve existing workflow behavior and concrete signatures.
 - Prepare lockstep major 5 with required and development NVL peer floors of `^5.0`. This candidate has not been tagged or published.
 - Keep disabled runtime hooks, host queue handlers and static callbacks untouched.

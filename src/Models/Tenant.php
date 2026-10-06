@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Nvl\Tenancy\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Nvl\Support\Config\PackageStorage;
 use Nvl\Support\Tenancy\Enums\TenantStatus;
+use Nvl\Tenancy\Database\Factories\TenantFactory;
 use Nvl\Tenancy\Definitions\Tables\TenancyTables;
 
 /**
@@ -19,9 +21,16 @@ use Nvl\Tenancy\Definitions\Tables\TenancyTables;
  * @property TenantStatus $status Current tenant lifecycle state.
  * @property Carbon|null $created_at Creation time.
  * @property Carbon|null $updated_at Last update time.
+ *
+ * @api
+ *
+ * @nvl-consumer-read id
  */
 final class Tenant extends Model
 {
+    /** @use HasFactory<TenantFactory> */
+    use HasFactory;
+
     use HasUuids;
 
     public const string TABLE = TenancyTables::Tenants;
@@ -52,5 +61,15 @@ final class Tenant extends Model
     public function getTable(): string
     {
         return TenancyTables::get(TenancyTables::Tenants);
+    }
+
+    /**
+     * Return the package's runtime fixture factory.
+     *
+     * @internal
+     */
+    protected static function newFactory(): TenantFactory
+    {
+        return TenantFactory::new();
     }
 }

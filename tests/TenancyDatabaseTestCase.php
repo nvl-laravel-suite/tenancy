@@ -7,6 +7,7 @@ namespace Nvl\Tenancy\Tests;
 use Illuminate\Contracts\Foundation\MaintenanceMode;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Nvl\Data\Providers\DataServiceProvider;
+use Nvl\Support\Providers\LocaleServiceProvider;
 use Nvl\Support\Providers\SupportServiceProvider;
 use Nvl\Support\Tenancy\Contracts\TenantDirectory;
 use Nvl\Tenancy\Contracts\PlatformAccess;
@@ -30,18 +31,23 @@ abstract class TenancyDatabaseTestCase extends TestCase
     {
         $app['config']->set('nvl-tenancy.enabled', true);
 
-        return [SupportServiceProvider::class, DataServiceProvider::class, TenancyServiceProvider::class];
+        return [
+            LocaleServiceProvider::class, SupportServiceProvider::class, DataServiceProvider::class, TenancyServiceProvider::class];
     }
 
     /** Configure the real opt-in core schema and explicit test authorization. */
     protected function defineEnvironment($app): void
     {
+        $driver = getenv('NVL_FULL_DATABASE') === '1' ? (getenv('DB_CONNECTION') ?: 'sqlite') : 'sqlite';
+        $database = $driver === 'sqlite' ? ':memory:' : (getenv('DB_DATABASE') ?: 'testing');
+
         $app['config']->set([
-            'database.default' => 'sqlite',
-            'database.connections.sqlite.database' => ':memory:',
-            'queue.batching.database' => 'sqlite',
-            'queue.connections.database.connection' => 'sqlite',
-            'queue.failed.database' => 'sqlite',
+            'database.default' => $driver,
+            'database.connections.'.$driver.'.database' => $database,
+            'database.connections.'.$driver.'.url' => null,
+            'queue.batching.database' => $driver,
+            'queue.connections.database.connection' => $driver,
+            'queue.failed.database' => $driver,
             'nvl-tenancy.enabled' => true,
             'nvl-tenancy.migrations.enabled' => true,
         ]);

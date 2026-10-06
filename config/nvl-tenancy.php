@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+/** Complete runtime defaults; publication sections are declared in ../resources/config/sections.json. */
 return [
     'enabled' => false,
     'strategy' => 'shared-database',

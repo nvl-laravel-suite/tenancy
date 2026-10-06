@@ -2,7 +2,8 @@
     "schema_version": 1,
     "package": "nvl/tenancy",
     "psr4": {
-        "Nvl\\Tenancy\\": "src"
+        "Nvl\\Tenancy\\": "src",
+        "Nvl\\Tenancy\\Database\\Factories\\": "database/factories"
     },
     "symbols": {
         "Nvl\\Tenancy\\Actions\\ChangeTenantStatusAction": {
@@ -25,11 +26,29 @@
             "properties": [],
             "constants": []
         },
+        "Nvl\\Tenancy\\Contracts\\ChangeTenantStatusContract": {
+            "kind": "interface",
+            "file": "src/Contracts/ChangeTenantStatusContract.php",
+            "methods": [
+                "execute"
+            ],
+            "properties": [],
+            "constants": []
+        },
         "Nvl\\Tenancy\\Contracts\\PlatformAccess": {
             "kind": "interface",
             "file": "src/Contracts/PlatformAccess.php",
             "methods": [
                 "authorize"
+            ],
+            "properties": [],
+            "constants": []
+        },
+        "Nvl\\Tenancy\\Contracts\\ProvisionTenantContract": {
+            "kind": "interface",
+            "file": "src/Contracts/ProvisionTenantContract.php",
+            "methods": [
+                "execute"
             ],
             "properties": [],
             "constants": []
@@ -104,6 +123,15 @@
             "properties": [],
             "constants": []
         },
+        "Nvl\\Tenancy\\Database\\Factories\\TenantFactory": {
+            "kind": "class",
+            "file": "database/factories/TenantFactory.php",
+            "methods": [
+                "definition"
+            ],
+            "properties": [],
+            "constants": []
+        },
         "Nvl\\Tenancy\\Enums\\TenantContextMode": {
             "kind": "enum",
             "file": "src/Enums/TenantContextMode.php",
@@ -161,6 +189,24 @@
                 "Suspended"
             ],
             "alias_of": "Nvl\\Support\\Tenancy\\Enums\\TenantStatus"
+        },
+        "Nvl\\Tenancy\\Models\\Tenant": {
+            "kind": "class",
+            "file": "src/Models/Tenant.php",
+            "methods": [
+                "getKey",
+                "getKeyName",
+                "getMorphClass",
+                "getRouteKey",
+                "getRouteKeyName",
+                "is",
+                "isNot",
+                "relationLoaded"
+            ],
+            "properties": [
+                "id"
+            ],
+            "constants": []
         },
         "Nvl\\Tenancy\\Services\\TenantContextParticipants": {
             "kind": "class",
@@ -287,7 +333,24 @@
             "alias_of": "Nvl\\Support\\Tenancy\\ValueObjects\\TenantSiteContext"
         }
     },
-    "models": {},
+    "models": {
+        "Nvl\\Tenancy\\Models\\Tenant": {
+            "read": [
+                "id"
+            ],
+            "identity_methods": [
+                "getKey",
+                "getKeyName",
+                "getMorphClass",
+                "getRouteKey",
+                "getRouteKeyName",
+                "is",
+                "isNot",
+                "relationLoaded"
+            ],
+            "capability_relations": []
+        }
+    },
     "capability_relations": {},
     "tables": {
         "adoption_mappings": "nvl_tenancy_adoption_mappings",

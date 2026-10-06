@@ -11,6 +11,7 @@ use Nvl\Support\Tenancy\Exceptions\TenantNotFound;
 use Nvl\Support\Tenancy\Services\EffectiveTenantConnection;
 use Nvl\Support\Tenancy\ValueObjects\PlatformOperation;
 use Nvl\Support\Tenancy\ValueObjects\TenantId;
+use Nvl\Tenancy\Contracts\ChangeTenantStatusContract;
 use Nvl\Tenancy\Models\Tenant;
 use Nvl\Tenancy\Services\PackageTenantDirectory;
 use Nvl\Tenancy\Services\TenantRunner;
@@ -20,7 +21,7 @@ use Nvl\Tenancy\Services\TenantRunner;
  *
  * @api
  */
-final readonly class ChangeTenantStatusAction
+final readonly class ChangeTenantStatusAction implements ChangeTenantStatusContract
 {
     /** Create the tenant status transition use case. */
     public function __construct(

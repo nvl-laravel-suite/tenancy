@@ -17,6 +17,7 @@ use Illuminate\Support\Defer\DeferredCallbackCollection;
 use Illuminate\Support\ServiceProvider;
 use Nvl\Data\Services\TypeScriptSourceRegistry;
 use Nvl\Support\Doctor\PackageDoctorContributor;
+use Nvl\Support\Globals\GlobalNames;
 use Nvl\Support\Providers\TenantServiceProvider;
 use Nvl\Support\Tenancy\Contracts\TenantBoundary as BoundaryContract;
 use Nvl\Support\Tenancy\Contracts\TenantContext;
@@ -42,9 +43,13 @@ use Nvl\Support\Tenancy\Services\TenantSiteAttributes;
 use Nvl\Support\Tenancy\ValueObjects\TenantSiteContext;
 use Nvl\Support\Traits\MergesPackageConfiguration;
 use Nvl\Support\Traits\RegistersNamespacedResources;
+use Nvl\Tenancy\Actions\ChangeTenantStatusAction;
+use Nvl\Tenancy\Actions\ProvisionTenantAction;
 use Nvl\Tenancy\Console\Commands\TenancyAdoptCommand;
 use Nvl\Tenancy\Console\Commands\TenancyDoctorCommand;
+use Nvl\Tenancy\Contracts\ChangeTenantStatusContract;
 use Nvl\Tenancy\Contracts\PlatformAccess;
+use Nvl\Tenancy\Contracts\ProvisionTenantContract;
 use Nvl\Tenancy\Contracts\TenantSiteResolver;
 use Nvl\Tenancy\Http\Middleware\RequireTenantMembership;
 use Nvl\Tenancy\Http\Middleware\ResolvePublicTenant;
@@ -81,6 +86,10 @@ final class TenancyServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->app->make(GlobalNames::class)->translations('tenancy', __DIR__.'/../../lang', $this->app->make('translation.loader'));
+        $this->publishes([
+            __DIR__.'/../../lang' => lang_path('vendor/nvl-tenancy'),
+        ], 'nvl-tenancy-translations');
         $this->app->make(TypeScriptSourceRegistry::class)->register(__DIR__.'/..', 'nvl/tenancy');
         $configuration = $this->app->make(TenancyConfiguration::class);
         $configuration->validate();
@@ -107,6 +116,9 @@ final class TenancyServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->bindIf(ChangeTenantStatusContract::class, ChangeTenantStatusAction::class);
+        $this->app->bindIf(ProvisionTenantContract::class, ProvisionTenantAction::class);
+
         PackageDoctorContributor::register($this->app, 'nvl/tenancy', fn (): array => $this->app->make(TenancyDoctor::class)->inspect()['checks']);
 
         $this->mergePackageConfiguration(__DIR__.'/../../config/nvl-tenancy.php', 'tenancy');

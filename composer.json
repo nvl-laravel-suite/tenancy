@@ -13,7 +13,7 @@
         "ext-filter": "*",
         "ext-mbstring": "*",
         "ext-pdo": "*",
-        "laravel/framework": "^13.0",
+        "laravel/framework": "^12.0 || ^13.0",
         "nvl/core": "^5.0",
         "symfony/http-foundation": "^7.2 || ^8.0",
         "symfony/http-kernel": "^7.2 || ^8.0"
@@ -22,14 +22,15 @@
         "larastan/larastan": "^3.10",
         "laravel/pint": "^1.27",
         "mockery/mockery": "^1.6",
-        "orchestra/testbench": "^11.0",
+        "orchestra/testbench": "^10.0 || ^11.0",
         "pestphp/pest": "^4.0",
         "pestphp/pest-plugin-laravel": "^4.0",
         "symfony/process": "^7.2 || ^8.0"
     },
     "autoload": {
         "psr-4": {
-            "Nvl\\Tenancy\\": "src/"
+            "Nvl\\Tenancy\\": "src/",
+            "Nvl\\Tenancy\\Database\\Factories\\": "database/factories/"
         },
         "files": [
             "src/Support/LegacyNeutralAliases.php"
@@ -82,9 +83,26 @@
             "/.gitignore",
             "/composer.lock",
             "/.DS_Store",
-            "/**/.DS_Store"
+            "/**/.DS_Store",
+            "/**/.gitattributes",
+            "/**/.gitignore",
+            "/**/.gitkeep"
         ]
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "homepage": "https://github.com/nvl-laravel-suite/tenancy",
+    "authors": [
+        {
+            "name": "Nicolas Vlachos",
+            "homepage": "https://github.com/nicolasvlachos",
+            "role": "Developer"
+        }
+    ],
+    "support": {
+        "source": "https://github.com/nvl-laravel-suite/tenancy",
+        "docs": "https://github.com/nvl-laravel-suite/tenancy#readme",
+        "issues": "https://github.com/nvl-laravel-suite/tenancy/issues",
+        "security": "https://github.com/nvl-laravel-suite/tenancy/security/policy"
+    }
 }

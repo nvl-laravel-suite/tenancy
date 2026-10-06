@@ -155,3 +155,33 @@ Resolve all package tables through the table helper and canonical `nvl-tenancy.t
 - Generic config roots and unprefixed package environment names are foreign by default. For an upgrading NVL host only, select `nvl-core.compatibility.legacy_config` package IDs and `legacy_env` explicitly; both default off. Canonical presence wins, including false/null/empty values. Legacy inputs are read without writing back and are removed in major 6.
 - Use canonical `NVL_<PACKAGE>_*` variables only in config evaluation, then rebuild configuration caches and restart workers after cutover. Shared Laravel environment variables retain their names. Consult Core's versioned `support/resources/global-names.json` for all renames.
 - Old global aliases and legacy route families require separate explicit `global_aliases`/`legacy_routes` package selections. Preserve collisions and use Doctor diagnostics; never grant generic permissions automatically or claim signed-link compatibility without the same authorization/signature checks.
+
+## Application workflow substitution
+
+Both platform workflows gain focused contracts. Neutral Core contracts, effective host adapter identity, compatibility aliases, security, and inactive-by-default behavior are preserved.
+
+The supported workflow injection names are `ChangeTenantStatusContract`, `ProvisionTenantContract`.
+
+Inject the supported contract into host orchestration and bind a native interface
+mock or host implementation before resolving that orchestration. Keep concrete
+constructors and native workflow bodies intact; internal chains remain package-owned.
+Use declared DTOs or unsaved model identity handles for orchestration fixtures.
+Use real package workflows and Laravel framework fakes for persistence, tenant,
+queue, file, and external-effect integration checks. A host substitute proves
+only the host call and result. Keep public declarations tagged `@api` and
+constructor/configuration/private helpers internal.
+
+Consult the owning README's Testing your app section for native examples. Include
+`vendor/nvl/core/support/consumer-audit.neon` in host PHPStan and declare explicit
+`nvlConsumer.testPaths`; the Suite workbench is not consumer tooling.
+
+
+## Consumer runtime and testing contracts
+
+Start with the package README Quickstart and Testing your app sections. Use `nvl:install <package>` for loaded-package common config publication; it does not enable features, run schema or refresh caches. Preserve native host owner keys/morph maps and selected auth/tenancy defaults. Read full runtime defaults and publish advanced config only deliberately.
+
+Inject the supported focused interfaces and preserve host bindings. Returned model handles do not permit package-table queries/writes outside documented capability/extension seams. Host tests may substitute contracts in Laravel's container, use shipped model factories (ordinary make may persist parents; withoutParents()->make is detached), and use Laravel effect fakes deliberately. Only Media/Stripe have dedicated provider/library fakes; do not invent a universal package fake. Settings InteractsWithSettings is definition-only. Host PHPStan may include vendor/nvl/core/support/consumer-audit.neon; no unpublished workbench command is a consumer requirement.
+
+Read docs/events.md and the package README error table. Domain events use schemaVersion=1, model-free facts and actual source-connection commit callbacks; only six declared old Event suffix aliases remain for major 5. Migrate exact listeners/fakes and suffix wildcards, drain old queued payloads, rebuild event cache and restart workers. Delivery is not a durable outbox. The Core exception renderer is opt-in, JSON-only for respondable failures, with exactly message/code/context and host-selected locale. Do not expose diagnostics or reinterpret missing bindings as authorization denial.
+
+Core package logging uses nvl/normal with CSV quiet by default, stable message keys and bounded context; incidents survive quiet. Do not mutate global logger context or log raw row/provider/content/credential payloads. Run only authorized project checks and report new acceptance as pending until actual output exists.
