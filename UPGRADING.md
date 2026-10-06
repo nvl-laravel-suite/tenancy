@@ -109,3 +109,7 @@ SQS `getQueueableOptions()`, require an explicit raw retry integration. Custom
 retry commands must apply Core's `TenantQueueQuarantine::beforeNativeRetry()`
 raw-record preflight before any restoration. Commands omitting Laravel's event
 require that explicit integration. Recheck event ordering when upgrading Laravel.
+
+## Tagged consumer PHP boundary
+
+Use source `@api` workflows, extension contracts, and value types for application integration. Direct use of untagged implementations or `@internal` members is unsupported. This classification keeps existing concrete Action signatures and runtime behavior; it does not authorize package model persistence, ad hoc queries, relation traversal, or generic model serialization. Returned models are identity/result handles with only the explicitly declared in-memory read fields described in the README.

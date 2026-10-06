@@ -7,5 +7,9 @@ namespace Nvl\Tenancy\Contracts;
 use Nvl\Support\Tenancy\Contracts\TenantContextParticipant;
 use Nvl\Tenancy\Support\LegacyNeutralAlias;
 
-/** @deprecated Use \Nvl\Support\Tenancy\Contracts\TenantContextParticipant; retained for one major release. */
+/**
+ * @deprecated Use \Nvl\Support\Tenancy\Contracts\TenantContextParticipant; retained for one major release.
+ *
+ * @api
+ */
 LegacyNeutralAlias::register(TenantContextParticipant::class, 'Nvl\\Tenancy\\Contracts\\TenantContextParticipant');

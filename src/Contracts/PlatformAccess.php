@@ -8,6 +8,8 @@ use Nvl\Support\Tenancy\ValueObjects\PlatformOperation;
 
 /**
  * Authorizes one explicit privileged platform operation.
+ *
+ * @api
  */
 interface PlatformAccess
 {

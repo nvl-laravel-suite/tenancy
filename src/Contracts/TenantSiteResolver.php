@@ -9,6 +9,8 @@ use Nvl\Support\Tenancy\ValueObjects\TenantSiteContext;
 
 /**
  * Resolves a verified tenant and site context for public requests.
+ *
+ * @api
  */
 interface TenantSiteResolver
 {

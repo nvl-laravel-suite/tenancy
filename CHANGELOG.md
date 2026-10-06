@@ -6,6 +6,7 @@ All notable changes to `nvl/tenancy` are documented here.
 
 ### Changed
 
+- Classify the supported consumer PHP surface with explicit source annotations and restrict package model handles to declared identity and in-memory read fields; preserve existing workflow behavior and concrete signatures.
 - Prepare lockstep major 5 with required and development NVL peer floors of `^5.0`. This candidate has not been tagged or published.
 - Keep disabled runtime hooks, host queue handlers and static callbacks untouched.
 - Validate queue envelope metadata before deserialization; preserve native failed-job storage with safe raw retry.

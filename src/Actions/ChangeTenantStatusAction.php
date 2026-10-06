@@ -15,7 +15,11 @@ use Nvl\Tenancy\Models\Tenant;
 use Nvl\Tenancy\Services\PackageTenantDirectory;
 use Nvl\Tenancy\Services\TenantRunner;
 
-/** Changes one package-owned tenant lifecycle state under a canonical row lock. */
+/**
+ * Changes one package-owned tenant lifecycle state under a canonical row lock.
+ *
+ * @api
+ */
 final readonly class ChangeTenantStatusAction
 {
     /** Create the tenant status transition use case. */

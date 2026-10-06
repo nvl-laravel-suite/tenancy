@@ -34,7 +34,7 @@ writes, grants, adoption adapter, and lifecycle.
 
 - Register concrete models and code-owned parent policies before boot completion.
   Declare ownership dependencies with the internal `requireCompatible` seam.
-- Use `TenantBoundary` for queries, records, generated root fields and identity
+- Use `Nvl\Support\Tenancy\Contracts\TenantBoundary` for queries, records, generated root fields and identity
   keys. Reload and lock under the predicate before writes; recheck status before
   external effects. Never authorize through dirty fields or loaded relations.
 - Generate mixed `ownership_key` values as `platform` or `tenant:<canonical UUID>`

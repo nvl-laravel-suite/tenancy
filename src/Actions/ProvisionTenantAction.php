@@ -15,7 +15,11 @@ use Nvl\Tenancy\Models\Tenant;
 use Nvl\Tenancy\Services\PackageTenantDirectory;
 use Nvl\Tenancy\Services\TenantRunner;
 
-/** Provisions one canonical package-owned tenant through an audited platform operation. */
+/**
+ * Provisions one canonical package-owned tenant through an audited platform operation.
+ *
+ * @api
+ */
 final readonly class ProvisionTenantAction
 {
     /** Create the tenant provisioning use case. */

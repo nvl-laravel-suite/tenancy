@@ -7,5 +7,9 @@ namespace Nvl\Tenancy\ValueObjects;
 use Nvl\Support\Tenancy\ValueObjects\TenantResourceDefinition;
 use Nvl\Tenancy\Support\LegacyNeutralAlias;
 
-/** @deprecated Use \Nvl\Support\Tenancy\ValueObjects\TenantResourceDefinition; retained for one major release. */
+/**
+ * @deprecated Use \Nvl\Support\Tenancy\ValueObjects\TenantResourceDefinition; retained for one major release.
+ *
+ * @api
+ */
 LegacyNeutralAlias::register(TenantResourceDefinition::class, 'Nvl\\Tenancy\\ValueObjects\\TenantResourceDefinition');

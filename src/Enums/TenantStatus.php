@@ -7,5 +7,9 @@ namespace Nvl\Tenancy\Enums;
 use Nvl\Support\Tenancy\Enums\TenantStatus;
 use Nvl\Tenancy\Support\LegacyNeutralAlias;
 
-/** @deprecated Use \Nvl\Support\Tenancy\Enums\TenantStatus; retained for one major release. */
+/**
+ * @deprecated Use \Nvl\Support\Tenancy\Enums\TenantStatus; retained for one major release.
+ *
+ * @api
+ */
 LegacyNeutralAlias::register(TenantStatus::class, 'Nvl\\Tenancy\\Enums\\TenantStatus');

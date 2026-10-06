@@ -7,5 +7,9 @@ namespace Nvl\Tenancy\Contracts;
 use Nvl\Support\Tenancy\Contracts\TenantQueuedJob;
 use Nvl\Tenancy\Support\LegacyNeutralAlias;
 
-/** @deprecated Use \Nvl\Support\Tenancy\Contracts\TenantQueuedJob; retained for one major release. */
+/**
+ * @deprecated Use \Nvl\Support\Tenancy\Contracts\TenantQueuedJob; retained for one major release.
+ *
+ * @api
+ */
 LegacyNeutralAlias::register(TenantQueuedJob::class, 'Nvl\\Tenancy\\Contracts\\TenantQueuedJob');

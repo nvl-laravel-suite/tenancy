@@ -7,5 +7,9 @@ namespace Nvl\Tenancy\Enums;
 use Nvl\Support\Tenancy\Enums\TenantContextMode;
 use Nvl\Tenancy\Support\LegacyNeutralAlias;
 
-/** @deprecated Use \Nvl\Support\Tenancy\Enums\TenantContextMode; retained for one major release. */
+/**
+ * @deprecated Use \Nvl\Support\Tenancy\Enums\TenantContextMode; retained for one major release.
+ *
+ * @api
+ */
 LegacyNeutralAlias::register(TenantContextMode::class, 'Nvl\\Tenancy\\Enums\\TenantContextMode');
