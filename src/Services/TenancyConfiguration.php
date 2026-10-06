@@ -27,11 +27,11 @@ final readonly class TenancyConfiguration
      * @var array<string, class-string>
      */
     private const array ADAPTER_CONTRACTS = [
-        'tenancy.directory.adapter' => TenantDirectory::class,
-        'tenancy.resolvers.http' => TenantHttpResolver::class,
-        'tenancy.resolvers.public_site' => TenantSiteResolver::class,
-        'tenancy.access.membership' => TenantMembershipAccess::class,
-        'tenancy.access.platform' => PlatformAccess::class,
+        'nvl-tenancy.directory.adapter' => TenantDirectory::class,
+        'nvl-tenancy.resolvers.http' => TenantHttpResolver::class,
+        'nvl-tenancy.resolvers.public_site' => TenantSiteResolver::class,
+        'nvl-tenancy.access.membership' => TenantMembershipAccess::class,
+        'nvl-tenancy.access.platform' => PlatformAccess::class,
     ];
 
     /**
@@ -49,7 +49,7 @@ final readonly class TenancyConfiguration
      */
     public function validate(): void
     {
-        $tenancy = $this->configuration->get('tenancy');
+        $tenancy = $this->configuration->get('nvl-tenancy');
 
         if (! is_array($tenancy)) {
             throw new TenantConfigurationInvalid('tenancy must be an array.');

@@ -35,7 +35,7 @@ beforeEach(function (): void {
 });
 
 it('rejects enabled resources with no adopted schema', function (): void {
-    config()->set('tenancy.enabled', true);
+    config()->set('nvl-tenancy.enabled', true);
     expect(fn () => app(TenantBoundary::class)->key('tests.records', 'key'))->toThrow(TenantSchemaNotReady::class);
 });
 
@@ -46,7 +46,7 @@ it('rejects prepared and incompatible installation markers', function (string $s
 
 it('rejects disabling the feature after resource adoption', function (): void {
     F4InstallationFixture::install();
-    config()->set('tenancy.enabled', false);
+    config()->set('nvl-tenancy.enabled', false);
     expect(fn () => app(TenantBoundary::class)->key('tests.records', 'key'))->toThrow(TenantSchemaNotReady::class);
 });
 
@@ -128,8 +128,8 @@ it('keeps resource markers effective after reboot even when core configuration p
         config()->set([
             'database.connections.sqlite.database' => $file,
             'database.connections.empty_core' => [...config('database.connections.sqlite'), 'database' => ':memory:'],
-            'tenancy.connection' => 'empty_core',
-            'tenancy.enabled' => $enabled,
+            'nvl-tenancy.connection' => 'empty_core',
+            'nvl-tenancy.enabled' => $enabled,
         ]);
         app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('tests.records', 'tests', OwnedRecord::class));
         expect(fn () => app(TenantBoundary::class)->query(OwnedRecord::query(), 'tests.records')->get())->toThrow(TenantSchemaNotReady::class);
@@ -148,9 +148,9 @@ it('rejects changed ownership configuration in a newly booted application', func
         $this->refreshApplication();
         config()->set([
             'database.connections.sqlite.database' => $file,
-            'tenancy.enabled' => true,
-            'tenancy.directory.driver' => 'host',
-            'tenancy.directory.adapter' => ArrayTenantDirectory::class,
+            'nvl-tenancy.enabled' => true,
+            'nvl-tenancy.directory.driver' => 'host',
+            'nvl-tenancy.directory.adapter' => ArrayTenantDirectory::class,
         ]);
         app()->instance(TenantDirectory::class, new ArrayTenantDirectory([]));
         app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('tests.records', 'tests', OwnedRecord::class));
@@ -168,11 +168,11 @@ it('does not invalidate adopted roots when an unrelated package registers later'
 });
 
 it('rejects unsupported platform and family dependency modes', function (): void {
-    config()->set('tenancy.resources.tests', 'platform');
+    config()->set('nvl-tenancy.resources.tests', 'platform');
     expect(fn () => app(TenantOwnershipConfiguration::class)->validate())->toThrow(TenantConfigurationInvalid::class);
-    config()->set('tenancy.resources.tests', 'tenant');
+    config()->set('nvl-tenancy.resources.tests', 'tenant');
     app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('other.records', 'other', InheritedRecord::class, allowsPlatformRows: true));
-    config()->set('tenancy.resources.other', 'platform');
+    config()->set('nvl-tenancy.resources.other', 'platform');
     app(TenantResourceRegistry::class)->requireCompatible('tests', 'other');
     expect(fn () => app(TenantOwnershipConfiguration::class)->validate())->toThrow(TenantConfigurationInvalid::class);
 });
@@ -211,7 +211,7 @@ it('rejects incomplete parent and polymorphic allowlist registrations before ado
 it('preserves disabled unadopted models on their own connection', function (): void {
     config()->set([
         'database.connections.empty_core' => config('database.connections.sqlite'),
-        'tenancy.connection' => 'empty_core',
+        'nvl-tenancy.connection' => 'empty_core',
     ]);
     expect(app(TenantBoundary::class)->key('tests.records', 'legacy'))->toBe('legacy');
 });
@@ -237,7 +237,7 @@ it('applies an explicit tenant family mode to mutable roots while fixed vocabula
     app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('tests.vocabulary', 'tests', InheritedRecord::class, TenantResourceKind::Platform));
     app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('other.records', 'other', PolymorphicRecord::class));
     app(TenantResourceRegistry::class)->requireCompatible('other', 'tests');
-    config()->set('tenancy.resources.tests', 'tenant');
+    config()->set('nvl-tenancy.resources.tests', 'tenant');
     expect(app(TenantOwnershipConfiguration::class)->validate())->toBeNull()
         ->and(app(TenantOwnershipConfiguration::class)->mode(app(TenantResourceRegistry::class)->get('tests.records')))->toBe('tenant')
         ->and(app(TenantOwnershipConfiguration::class)->mode(app(TenantResourceRegistry::class)->get('tests.vocabulary')))->toBe('platform');
@@ -245,14 +245,14 @@ it('applies an explicit tenant family mode to mutable roots while fixed vocabula
 
 it('rejects attempting to reclassify a family containing only fixed platform vocabulary', function (): void {
     app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('vocabulary.records', 'vocabulary', InheritedRecord::class, TenantResourceKind::Platform));
-    config()->set('tenancy.resources.vocabulary', 'tenant');
+    config()->set('nvl-tenancy.resources.vocabulary', 'tenant');
     expect(fn () => app(TenantOwnershipConfiguration::class)->validate())->toThrow(TenantConfigurationInvalid::class);
 });
 
 it('rejects a polymorphic child family override that contradicts its allowlisted parent', function (): void {
     app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('children.records', 'children', PolymorphicRecord::class, TenantResourceKind::Inherited, parentRelation: 'owner'));
     app(TenantResourceRegistry::class)->registerParentResolver('children.records', AllowedParentResolver::class);
-    config()->set('tenancy.resources.children', 'platform');
+    config()->set('nvl-tenancy.resources.children', 'platform');
     expect(fn () => app(TenantOwnershipConfiguration::class)->validate())->toThrow(TenantConfigurationInvalid::class);
 });
 
@@ -265,8 +265,8 @@ it('derives polymorphic child ownership recursively without a redundant child ov
     $registry->registerParentResolver('children.records', ParentTypesResolver::class);
     app()->instance(ParentTypesResolver::class, new ParentTypesResolver(['parent' => InheritedRecord::class]));
     $registry->requireCompatible('children', 'tests');
-    config()->set('tenancy.resources.tests', $mode);
-    expect(config('tenancy.resources.children'))->toBeNull()
+    config()->set('nvl-tenancy.resources.tests', $mode);
+    expect(config('nvl-tenancy.resources.children'))->toBeNull()
         ->and(app(TenantOwnershipConfiguration::class)->mode($registry->get('children.records')))->toBe($mode)
         ->and(app(TenantOwnershipConfiguration::class)->validate())->toBeNull();
 })->with(['tenant', 'platform']);
@@ -277,9 +277,9 @@ it('rejects contradictory polymorphic parent modes before a child override can s
     $registry->register(new TenantResourceDefinition('children.records', 'children', PolymorphicRecord::class, TenantResourceKind::Inherited, parentRelation: 'owner'));
     $registry->registerParentResolver('children.records', ParentTypesResolver::class);
     app()->instance(ParentTypesResolver::class, new ParentTypesResolver(['tenant' => OwnedRecord::class, 'platform' => InheritedRecord::class]));
-    config()->set('tenancy.resources.platform_roots', 'platform');
+    config()->set('nvl-tenancy.resources.platform_roots', 'platform');
     if ($override !== null) {
-        config()->set('tenancy.resources.children', $override);
+        config()->set('nvl-tenancy.resources.children', $override);
     }
     expect(fn () => app(TenantOwnershipConfiguration::class)->mode($registry->get('children.records')))->toThrow(TenantConfigurationInvalid::class);
 })->with([null, 'tenant', 'platform']);

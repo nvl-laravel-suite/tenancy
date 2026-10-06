@@ -28,7 +28,7 @@ use Nvl\Tenancy\Tests\Fixtures\StrictTenantHttpResolver;
 use Symfony\Component\HttpFoundation\Response;
 
 beforeEach(function (): void {
-    config()->set('tenancy.enabled', true);
+    config()->set('nvl-tenancy.enabled', true);
     $this->a = new TenantId('10000000-0000-4000-8000-000000000001');
     $this->b = new TenantId('10000000-0000-4000-8000-000000000002');
     $this->directory = new ArrayTenantDirectory([

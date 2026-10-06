@@ -52,7 +52,7 @@ function tenancyCoreSchema(): Builder
 
 function registerAndRunTenancyCoreMigrations(): void
 {
-    config()->set('tenancy.migrations.enabled', true);
+    config()->set('nvl-tenancy.migrations.enabled', true);
     (new TenancyServiceProvider(app()))->boot();
     Artisan::call('migrate', ['--force' => true]);
 }
@@ -64,7 +64,7 @@ beforeEach(function (): void {
 it('inherits the suite connection consistently across runtime model and migration boundaries', function (): void {
     config()->set('database.connections.suite_core', config('database.connections.sqlite'));
     config()->set('nvl-core.connection', 'suite_core');
-    config()->set('tenancy.connection', null);
+    config()->set('nvl-tenancy.connection', null);
     $migration = require glob(__DIR__.'/../../database/migrations/tenancy/*.php')[0];
     expect(app(EffectiveTenantConnection::class)->core()->getName())->toBe('suite_core')
         ->and((new Tenant)->getConnectionName())->toBe('suite_core')
@@ -73,7 +73,7 @@ it('inherits the suite connection consistently across runtime model and migratio
 });
 
 it('keeps the core schema absent from default and feature-only migrations', function (bool $featureEnabled): void {
-    config()->set('tenancy.enabled', $featureEnabled);
+    config()->set('nvl-tenancy.enabled', $featureEnabled);
     (new TenancyServiceProvider(app()))->boot();
 
     Artisan::call('migrate', ['--force' => true]);
@@ -88,7 +88,7 @@ it('registers all five core tables only on the configured connection', function 
         ...config('database.connections.sqlite'),
         'database' => ':memory:',
     ]);
-    config()->set('tenancy.connection', 'tenancy_core');
+    config()->set('nvl-tenancy.connection', 'tenancy_core');
 
     registerAndRunTenancyCoreMigrations();
 
@@ -146,7 +146,7 @@ it('reverses the complete opt-in core migration set', function (): void {
 
 it('provisions a package tenant after authorization and a durable audit', function (): void {
     registerAndRunTenancyCoreMigrations();
-    config()->set('tenancy.enabled', true);
+    config()->set('nvl-tenancy.enabled', true);
     $access = new TestPlatformAccess;
     app()->instance(PlatformAccess::class, $access);
     $operation = new PlatformOperation('provision tenant', 'user', 'operator-1');
@@ -201,7 +201,7 @@ it('preserves platform audits when privileged callbacks fail', function (): void
 
 it('locks canonical rows for status changes and immediately denies inactive admission', function (TenantStatus $status): void {
     registerAndRunTenancyCoreMigrations();
-    config()->set('tenancy.enabled', true);
+    config()->set('nvl-tenancy.enabled', true);
     app()->instance(PlatformAccess::class, new TestPlatformAccess);
     $provision = new PlatformOperation('provision tenant', 'user', 'operator-1');
     $changeStatus = new PlatformOperation('change tenant status', 'user', 'operator-1');

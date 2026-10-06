@@ -40,7 +40,7 @@ final readonly class TenantRunner implements \Nvl\Support\Tenancy\Contracts\Tena
      */
     public function run(TenantId $tenant, Closure $operation): mixed
     {
-        if ($this->container->make(Repository::class)->get('tenancy.enabled') !== true) {
+        if ($this->container->make(Repository::class)->get('nvl-tenancy.enabled') !== true) {
             throw new TenantConfigurationInvalid('Tenant execution requires tenancy.enabled.');
         }
         $this->container->make(TenantOwnershipConfiguration::class)->assertReady();
@@ -98,7 +98,7 @@ final readonly class TenantRunner implements \Nvl\Support\Tenancy\Contracts\Tena
             throw new TenantBoundaryViolation('This boundary cannot grant tenant or platform privilege.');
         }
 
-        $enabled = $this->container->make(Repository::class)->get('tenancy.enabled') === true;
+        $enabled = $this->container->make(Repository::class)->get('nvl-tenancy.enabled') === true;
         if (($snapshot->mode === TenantContextMode::Disabled) === $enabled) {
             throw new TenantBoundaryViolation('The non-tenant queue context is incompatible with this deployment.');
         }

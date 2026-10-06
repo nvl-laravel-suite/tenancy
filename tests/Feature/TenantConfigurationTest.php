@@ -2,17 +2,26 @@
 
 declare(strict_types=1);
 
+use Illuminate\Bus\BatchFactory;
+use Illuminate\Bus\BatchRepository;
+use Illuminate\Bus\DatabaseBatchRepository;
+use Illuminate\Contracts\Bus\Dispatcher;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Application;
+use Illuminate\Queue\CallQueuedHandler;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Nvl\Support\Config\PackageConfigurationMerger;
 use Nvl\Support\Tenancy\Contracts\TenantDirectory;
 use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
 use Nvl\Support\Tenancy\Services\EffectiveTenantConnection;
 use Nvl\Support\Tenancy\Services\TenantResourceRegistry;
 use Nvl\Support\Tenancy\ValueObjects\TenantResourceDefinition;
+use Nvl\Tenancy\Definitions\Tables\TenancyTables;
 use Nvl\Tenancy\Providers\TenancyServiceProvider;
 use Nvl\Tenancy\Services\TenancyConfiguration;
+use Nvl\Tenancy\Services\TenancyDoctor;
 use Nvl\Tenancy\Services\TenantAdoptionRegistry;
 use Nvl\Tenancy\Services\TenantOwnershipConfiguration;
 use Nvl\Tenancy\Tests\Fixtures\EmptyAdoptionAdapter;
@@ -25,7 +34,7 @@ it('derives application ownership and accepts compatible explicit platform famil
     app(TenantResourceRegistry::class)->register($resource);
     $ownership = app(TenantOwnershipConfiguration::class);
     expect($ownership->mode($resource))->toBe('tenant');
-    config()->set('tenancy.resources.pages', 'platform');
+    config()->set('nvl-tenancy.resources.pages', 'platform');
     $ownership->validate();
     expect($ownership->mode($resource))->toBe('platform')->and(DB::connection()->getQueryLog())->toBe([]);
 });
@@ -33,10 +42,10 @@ it('derives application ownership and accepts compatible explicit platform famil
 it('bounds invalid values and key labels before producing diagnostics', function (string $case): void {
     $long = str_repeat('private-value-', 1000);
     match ($case) {
-        'value' => config()->set('tenancy.strategy', $long),
-        'key' => config()->set('tenancy.'.$long, true),
-        'family' => config()->set('tenancy.resources', [$long => 'tenant']),
-        'mode' => config()->set('tenancy.resources', [$long => 'bad']),
+        'value' => config()->set('nvl-tenancy.strategy', $long),
+        'key' => config()->set('nvl-tenancy.'.$long, true),
+        'family' => config()->set('nvl-tenancy.resources', [$long => 'tenant']),
+        'mode' => config()->set('nvl-tenancy.resources', [$long => 'bad']),
     };
     try {
         app(TenancyConfiguration::class)->validate();
@@ -49,16 +58,16 @@ it('bounds invalid values and key labels before producing diagnostics', function
 })->with(['value', 'key', 'family', 'mode']);
 
 it('preserves deep maps and replaces neutral lists atomically while rejecting resolver lists', function (): void {
-    config()->set('tenancy', ['sharing' => ['media' => 'copy']]);
+    config()->set('nvl-tenancy', ['sharing' => ['media' => 'copy']]);
     (new TenancyServiceProvider(app()))->register();
-    expect(config('tenancy.sharing'))->toBe(['media' => 'copy', 'metafields' => 'none', 'templates' => 'none']);
+    expect(config('nvl-tenancy.sharing'))->toBe(['media' => 'copy', 'metafields' => 'none', 'templates' => 'none']);
     expect(PackageConfigurationMerger::merge(['list' => ['a', 'b']], ['list' => ['c']]))->toBe(['list' => ['c']]);
-    config()->set('tenancy.resolvers.http', [TestTenantDirectory::class]);
+    config()->set('nvl-tenancy.resolvers.http', [TestTenantDirectory::class]);
     expect(fn () => app(TenancyConfiguration::class)->validate())->toThrow(TenantConfigurationInvalid::class, 'class string');
 });
 
 it('rejects an unknown configured core connection alias', function (): void {
-    config()->set('tenancy.connection', 'not-configured');
+    config()->set('nvl-tenancy.connection', 'not-configured');
 
     expect(fn () => app(TenancyConfiguration::class)->validate())
         ->toThrow(TenantConfigurationInvalid::class, 'configured Laravel database connection');
@@ -67,9 +76,9 @@ it('rejects an unknown configured core connection alias', function (): void {
 it('keeps host directory precedence and validates serializable cached class configuration', function (): void {
     app()->bind(TenantDirectory::class, TestTenantDirectory::class);
     $original = app()->getBindings()[TenantDirectory::class];
-    config()->set('tenancy.directory', ['driver' => 'host', 'adapter' => TestTenantDirectory::class]);
-    $cached = eval('return '.var_export(config('tenancy'), true).';');
-    config()->set('tenancy', $cached);
+    config()->set('nvl-tenancy.directory', ['driver' => 'host', 'adapter' => TestTenantDirectory::class]);
+    $cached = eval('return '.var_export(config('nvl-tenancy'), true).';');
+    config()->set('nvl-tenancy', $cached);
     app(TenancyConfiguration::class)->validate();
     $provider = new TenancyServiceProvider(app());
     $provider->register();
@@ -84,8 +93,37 @@ it('reports feature configuration connection and adoption as separate readiness 
         ->and(array_column($report['checks'], 'key'))->toContain('tenancy.configuration', 'tenancy.core');
 });
 
+it('requires enforcing host queue integrations only for enabled or adopted storage', function (bool $enabled, bool $adopted): void {
+    config()->set('nvl-tenancy.enabled', $enabled);
+    app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('host.records', 'host', OwnedRecord::class));
+    if ($adopted) {
+        Schema::create(TenancyTables::get(TenancyTables::InstallationState), function (Blueprint $table): void {
+            $table->string('resource');
+        });
+        DB::table(TenancyTables::get(TenancyTables::InstallationState))->insert(['resource' => 'host.records']);
+    }
+    $handler = new CallQueuedHandler(app(Dispatcher::class), app());
+    $batches = new DatabaseBatchRepository(app(BatchFactory::class), DB::connection(), 'host_batches');
+    app()->instance(CallQueuedHandler::class, $handler);
+    app()->instance(BatchRepository::class, $batches);
+
+    $report = app(TenancyDoctor::class)->inspect();
+    $checks = array_column($report['checks'], null, 'key');
+    expect($checks['tenancy.queue_handler']['passed'])->toBe(! $enabled && ! $adopted)
+        ->and($checks['tenancy.batch_repository']['passed'])->toBe(! $enabled && ! $adopted)
+        ->and(app(CallQueuedHandler::class))->toBe($handler)
+        ->and(app(BatchRepository::class))->toBe($batches);
+    if ($enabled || $adopted) {
+        expect($checks['tenancy.queue_handler']['message'])->toContain('TenantQueueHandler', 'call', 'failed');
+    }
+})->with([
+    'disabled legacy storage' => [false, false],
+    'enabled runtime' => [true, false],
+    'disabled adopted storage' => [false, true],
+]);
+
 it('requires only an adoption adapter for a loaded zero-resource csv integration', function (): void {
-    config()->set('tenancy.enabled', true);
+    config()->set('nvl-tenancy.enabled', true);
     $application = Mockery::mock(Application::class)->makePartial();
     $application->shouldReceive('providerIsLoaded')->andReturnUsing(static fn (string $provider): bool => $provider === 'Nvl\\Csv\\Providers\\CsvServiceProvider');
     $application->shouldReceive('make')->with(TenantAdoptionRegistry::class)->andReturn(app(TenantAdoptionRegistry::class));
@@ -98,7 +136,7 @@ it('requires only an adoption adapter for a loaded zero-resource csv integration
 });
 
 it('does not require tenancy integrations from optional providers that are not loaded', function (): void {
-    config()->set('tenancy.enabled', true);
+    config()->set('nvl-tenancy.enabled', true);
     $application = Mockery::mock(Application::class)->makePartial();
     $application->shouldReceive('providerIsLoaded')->andReturn(false);
     $application->shouldReceive('make')->with(TenantAdoptionRegistry::class)->andReturn(app(TenantAdoptionRegistry::class));

@@ -251,7 +251,7 @@ final readonly class TenantQueueCommand
         if (! is_array($options)) {
             throw new TenantBoundaryViolation('Native batch options must be an array.');
         }
-        if ($this->container->make('config')->get('tenancy.enabled') !== true) {
+        if ($this->container->make('config')->get('nvl-tenancy.enabled') !== true) {
             if (array_key_exists('nvl_tenancy', $options) && ! is_array($options['nvl_tenancy'])) {
                 throw new TenantBoundaryViolation('Persisted batch context is malformed.');
             }

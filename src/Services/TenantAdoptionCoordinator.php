@@ -295,7 +295,7 @@ final readonly class TenantAdoptionCoordinator
     {
         $connection = $this->connections->core();
         $pdo = $connection->getPdo();
-        $enabled = $this->configuration->get('tenancy.enabled') === true;
+        $enabled = $this->configuration->get('nvl-tenancy.enabled') === true;
         $maintenance = $this->container->make(MaintenanceMode::class)->active();
         if ($requiresMaintenance && (! $enabled || ! $maintenance)) {
             throw new TenantBoundaryViolation('Adoption requires enabled tenancy and application maintenance mode.');
@@ -314,7 +314,7 @@ final readonly class TenantAdoptionCoordinator
     private function assertCallbackBoundary(Connection $connection, PDO $pdo, bool $enabled, bool $maintenance): void
     {
         if ($this->connections->core() !== $connection || $connection->getRawPdo() !== $pdo || $connection->transactionLevel() !== 0
-            || ($this->configuration->get('tenancy.enabled') === true) !== $enabled
+            || ($this->configuration->get('nvl-tenancy.enabled') === true) !== $enabled
             || $this->container->make(MaintenanceMode::class)->active() !== $maintenance) {
             throw new TenantBoundaryViolation('The adoption maintenance or connection boundary changed inside an adapter.');
         }
@@ -340,7 +340,7 @@ final readonly class TenantAdoptionCoordinator
      */
     private function mutate(PlatformOperation $operation, Closure $callback): mixed
     {
-        if ($this->configuration->get('tenancy.enabled') !== true || ! $this->container->make(MaintenanceMode::class)->active()) {
+        if ($this->configuration->get('nvl-tenancy.enabled') !== true || ! $this->container->make(MaintenanceMode::class)->active()) {
             throw new TenantBoundaryViolation('Adoption requires enabled tenancy and application maintenance mode.');
         }
         $this->container->make(PlatformAccess::class)->authorize($operation);

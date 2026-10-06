@@ -24,7 +24,7 @@ it('accepts a base extension while tenancy is disabled', function (): void {
 });
 
 it('requires the tenant capability only while tenancy is enabled', function (): void {
-    config()->set('tenancy.enabled', true);
+    config()->set('nvl-tenancy.enabled', true);
 
     $extension = new class implements Stringable
     {

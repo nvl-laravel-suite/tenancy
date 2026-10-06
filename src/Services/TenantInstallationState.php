@@ -40,7 +40,7 @@ final class TenantInstallationState implements \Nvl\Support\Tenancy\Contracts\Te
         $model = new $definition->model;
         $connection = $model->getConnection();
         $marker = $this->markers($connection)[$resource] ?? null;
-        $enabled = $this->configuration->get('tenancy.enabled') === true;
+        $enabled = $this->configuration->get('nvl-tenancy.enabled') === true;
         if ($marker === null && ! $enabled) {
             return;
         }

@@ -21,9 +21,15 @@ abstract class TenancyDatabaseTestCase extends TestCase
 {
     use DatabaseMigrations;
 
-    /** @return list<class-string> */
+    /**
+     * Enable the opted fixture before registration installs runtime queue hooks.
+     *
+     * @return list<class-string>
+     */
     protected function getPackageProviders($app): array
     {
+        $app['config']->set('nvl-tenancy.enabled', true);
+
         return [SupportServiceProvider::class, DataServiceProvider::class, TenancyServiceProvider::class];
     }
 
@@ -36,8 +42,8 @@ abstract class TenancyDatabaseTestCase extends TestCase
             'queue.batching.database' => 'sqlite',
             'queue.connections.database.connection' => 'sqlite',
             'queue.failed.database' => 'sqlite',
-            'tenancy.enabled' => true,
-            'tenancy.migrations.enabled' => true,
+            'nvl-tenancy.enabled' => true,
+            'nvl-tenancy.migrations.enabled' => true,
         ]);
         $app->instance(TenantDirectory::class, new ArrayTenantDirectory([]));
         $app->instance(PlatformAccess::class, new TestPlatformAccess);

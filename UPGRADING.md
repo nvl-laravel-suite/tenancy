@@ -2,7 +2,7 @@
 
 ## Tenancy foundation distribution
 
-Standalone `nvl/tenancy:^2.0` requires Support/Data and the declared PHP extensions
+Standalone `nvl/tenancy:^5.0` requires Support/Data and the declared PHP extensions
 and Symfony runtime components; it requires no NVL Auth. Tenancy and optional core
 migrations remain disabled by default. Its provider now registers a TypeScript
 source, so source diagnostics include `nvl/tenancy` even with tenancy disabled.
@@ -17,13 +17,13 @@ that domain packages have completed their tenancy adoption.
 The foundation is disabled by default and introduces no migration or data
 adoption requirement.
 
-1. Publish and review `tenancy.php` as a minimal deployment overlay.
-2. Keep `tenancy.enabled=false` until every participating package integration is
+1. Publish and review `nvl-tenancy.php` as a minimal deployment overlay.
+2. Keep `nvl-tenancy.enabled=false` until every participating package integration is
    installed and its adoption procedure has been reviewed.
 3. Choose core-schema ownership explicitly. Set
-   `tenancy.migrations.enabled=true` for package-managed migrations, or publish
-   `tenancy-migrations` for an application-owned copy. Both paths target
-   `tenancy.connection`; feature enablement alone never registers migrations.
+   `nvl-tenancy.migrations.enabled=true` for package-managed migrations, or publish
+   `nvl-tenancy-migrations` for an application-owned copy. Both paths target
+   `nvl-tenancy.connection`; feature enablement alone never registers migrations.
 4. Replace closures with class-string adapters before caching configuration.
 5. Configure either a class string or a host binding for each adapter contract.
    Package provisioning and status actions are supported only when the effective
@@ -55,12 +55,57 @@ This is a breaking schema identity change. Back up storage and migration history
 
 ```sh
 php artisan nvl:doctor --strict --format=json
-php artisan nvl:schema:upgrade --package=tenancy --claim-legacy --dry-run --format=json
-php artisan nvl:schema:upgrade --package=tenancy --claim-legacy --format=json
+php artisan nvl:schema:upgrade --package=tenancy --claim-legacy --migration-owner=vendor --dry-run --format=json
+php artisan nvl:schema:upgrade --package=tenancy --claim-legacy --migration-owner=vendor --format=json
 ```
 
 The command validates released columns and relational keys plus creating migration history, renames owned legacy tables to the effective `tables.*` targets and rewrites exact package migration identities while retaining batches and unrelated host records. It refuses foreign/incomplete shapes and conflicting targets. Explicit old table mappings retain those names; remove them when choosing new defaults. A second run is empty.
 
-Unmodified published files, including changed timestamps, map by verified checksum to the exact vendor migration identity and current package migration implementation. Modified host copies remain host-owned. Disable vendor loading when retaining a published owner; duplicate ownership fails before migration. No migration files or stored morph types are rewritten.
+Declare each published path and canonical identity explicitly in `nvl-core.migrations.published`; retimestamped history also needs an exact `legacy` mapping. Use `--migration-owner=vendor` after manually archiving declared copies outside loaded paths, or `--migration-owner=published` after manually replacing executable copies with current migration code and disabling vendor loading. The plan verifies ownership and preserves batches; checksums do not automatically claim files. Modified host copies remain host-owned. No migration files or stored morph types are rewritten.
 
-DDL transactions are driver dependent and per connection. Inspect dry-run warnings for MySQL/MariaDB or split storage; after a failure, inspect completed steps before resuming. Schema-qualified rename targets require an explicit host schema move first. Re-enable your selected migration owner, migrate remaining package changes and rerun Doctor before resuming writes. See the suite upgrade guide for shared owner/locale inputs, Core option defaults and one-major deprecation rules.
+DDL transactions are driver dependent and per connection. Inspect dry-run warnings for MySQL/MariaDB or split storage; after a failure, inspect completed steps before resuming. Schema-qualified rename targets require an explicit host schema move first. Re-enable your selected migration owner, run `nvl:schema:preflight` with the same selected paths and connection, then migrate remaining package changes and rerun Doctor before resuming writes. See the suite upgrade guide for shared owner/locale inputs, Core option defaults and one-major deprecation rules.
+
+
+## Queue envelope and retained handler cutover
+
+### Compose retained queue handlers explicitly
+
+Enabled Tenancy preserves an existing host `CallQueuedHandler` binding. Adapt it
+to Core's `TenantQueueHandler` contract: `validate()` must admit captured metadata
+and the inert command/model graph without restoring user objects. Both `call()`
+and `failed()` must revalidate before command restoration. Extending the supplied
+`TenantCallQueuedHandler` and preserving all three methods supplies this adapter.
+Core invokes `validate()` at `JobProcessing`, before native execution or terminal
+failure handling. Carried-envelope mismatches, wrong-owner model identifiers and
+other admission failures enter raw quarantine, so native retry cannot restore
+the rejected command. Admitted commands that fail in `handle()` keep native
+failure handling. Ordinary host payloads without NVL metadata retain their handling.
+Tenancy Doctor requires these integrations when the runtime is enabled or a
+declared resource has adopted storage; disabled legacy storage passes with
+retained host handlers and batch repositories.
+
+### Retry quarantined NVL jobs through raw transport
+
+Rejected NVL envelopes appear in the host's native failed-job store with
+`NVL queue envelope rejected:` in their boundary exception. Laravel's native
+`queue:retry` restores the command before it requeues it. Installed Laravel 13
+dispatches `JobRetryRequested` before that restoration, so Core rejects identified
+quarantine records at this event for native ID, `all`, queue and range selections.
+These records must use the raw retry command. Ordinary failed
+host jobs retain native retry behavior.
+
+Configure persistent native failed-job storage for this inspection and retry
+path. If that storage is disabled or unavailable, the rejected job is still
+deleted to prevent native failure callbacks, and a storage error is raised;
+there is no durable quarantine record for that attempt.
+
+After repairing the runtime or envelope boundary, use
+`php artisan nvl:queue:retry <failed-id...>` for these records. It requeues the
+original raw body and lets the worker validate it again; it preserves captured
+`retryUntil` and payload attempts. The native failed-job ID is forgotten only
+after the transport confirms the push. An expired deadline still expires.
+Sync queues and transports with command-dependent options, including native
+SQS `getQueueableOptions()`, require an explicit raw retry integration. Custom
+retry commands must apply Core's `TenantQueueQuarantine::beforeNativeRetry()`
+raw-record preflight before any restoration. Commands omitting Laravel's event
+require that explicit integration. Recheck event ordering when upgrading Laravel.

@@ -20,8 +20,8 @@ return Illuminate\Foundation\Application::configure(basePath: dirname(__DIR__))
     ->withProviders([
         Nvl\Support\Providers\SupportServiceProvider::class,
         Nvl\Data\Providers\DataServiceProvider::class,
-        Nvl\Tenancy\Providers\TenancyServiceProvider::class,
         Nvl\Tenancy\Tests\Fixtures\WorkerProbeProvider::class,
+        Nvl\Tenancy\Providers\TenancyServiceProvider::class,
     ])->withExceptions()->withMiddleware()->create();
 PHP_BOOT;
         file_put_contents($consumer.'/bootstrap/app.php', $bootstrap);
@@ -48,7 +48,19 @@ PHP_BOOT;
             ['stage' => 'unserialize', 'tenant' => $a, 'label' => 'retry-A'], ['stage' => 'handle', 'tenant' => $a, 'label' => 'retry-A'],
         ])->and($database->query('select distinct mode from worker_scopes')->fetchAll(PDO::FETCH_COLUMN))->toBe(['unresolved'])
             ->and((int) $database->query('select count(*) from jobs')->fetchColumn())->toBe(0)
-            ->and((int) $database->query('select count(distinct pid) from worker_scopes')->fetchColumn())->toBe(1);
+            ->and((int) $database->query('select count(distinct pid) from worker_scopes')->fetchColumn())->toBe(1)
+            ->and((int) $database->query('select count(*) from failed_jobs')->fetchColumn())->toBe(7);
+        $failed = $database->query('select uuid, payload, exception from failed_jobs')->fetchAll(PDO::FETCH_ASSOC);
+        $quarantined = array_values(array_filter($failed, static fn (array $failure): bool => str_contains($failure['exception'], 'NVL queue envelope rejected:')));
+        expect($quarantined)->toHaveCount(5);
+        foreach ($quarantined as $failure) {
+            $retry = new Process([PHP_BINARY, $consumer.'/artisan', 'queue:retry', $failure['uuid'], '--no-interaction'], $consumer, $env);
+            $retry->setTimeout(30)->run();
+            expect($retry->isSuccessful())->toBeFalse()
+                ->and($database->query('select stage, tenant, label from queue_probes order by id')->fetchAll(PDO::FETCH_ASSOC))->toBe($rows)
+                ->and((int) $database->query('select count(*) from jobs')->fetchColumn())->toBe(0)
+                ->and((int) $database->query('select count(*) from failed_jobs')->fetchColumn())->toBe(7);
+        }
     } finally {
         $files->deleteDirectory($consumer);
     }

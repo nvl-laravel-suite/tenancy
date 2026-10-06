@@ -13,6 +13,7 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Mail\SendQueuedMailable;
 use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Queue\CallQueuedHandler;
+use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Queue\Jobs\SyncJob;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\Bus;
@@ -31,12 +32,14 @@ use Nvl\Support\Tenancy\Enums\TenantStatus;
 use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
 use Nvl\Support\Tenancy\Exceptions\TenantConfigurationInvalid;
 use Nvl\Support\Tenancy\Exceptions\TenantSchemaNotReady;
+use Nvl\Support\Tenancy\Services\TenantQueueQuarantine;
 use Nvl\Support\Tenancy\Services\TenantResourceRegistry;
 use Nvl\Support\Tenancy\ValueObjects\TenantContextSnapshot;
 use Nvl\Support\Tenancy\ValueObjects\TenantDescriptor;
 use Nvl\Support\Tenancy\ValueObjects\TenantId;
 use Nvl\Support\Tenancy\ValueObjects\TenantJobEnvelope;
 use Nvl\Support\Tenancy\ValueObjects\TenantResourceDefinition;
+use Nvl\Tenancy\Providers\TenancyServiceProvider;
 use Nvl\Tenancy\Queue\TenantCallQueuedHandler;
 use Nvl\Tenancy\Queue\TenantDatabaseBatchRepository;
 use Nvl\Tenancy\Services\TenantGlobalJobRegistry;
@@ -61,7 +64,8 @@ use Nvl\Tenancy\Tests\Fixtures\QueueProbeInstallation;
 use Nvl\Tenancy\Tests\Fixtures\UniqueProbeTenantJob;
 
 beforeEach(function (): void {
-    config()->set('tenancy.enabled', true);
+    config()->set('nvl-tenancy.enabled', true);
+    (new TenancyServiceProvider(app()))->register();
     config()->set('queue.batching.database', 'sqlite');
     config()->set('queue.connections.database.connection', 'sqlite');
     config()->set('queue.failed.database', 'sqlite');
@@ -184,6 +188,49 @@ it('rejects foreign canonical model ownership before restoration in normal and f
         ->and(ProbeTenantJob::$observations)->toBe([])
         ->and(ProbeRestoredModel::$restored)->toBe([]);
 });
+
+it('quarantines rejected synchronous admission before native failure handling can restore commands', function (bool $foreignOwner): void {
+    Schema::create('failed_jobs', function (Blueprint $table): void {
+        $table->id();
+        $table->string('uuid')->unique();
+        $table->text('connection');
+        $table->text('queue');
+        $table->longText('payload');
+        $table->longText('exception');
+        $table->timestamp('failed_at');
+    });
+    config()->set('queue.failed', ['driver' => 'database-uuids', 'database' => 'sqlite', 'table' => 'failed_jobs']);
+    app()->forgetInstance('queue.failer');
+    $foreign = null;
+    if ($foreignOwner) {
+        Schema::create('tenancy_test_records', function (Blueprint $table): void {
+            $table->uuid('id')->primary();
+            $table->uuid('tenant_id');
+            $table->string('name');
+            $table->softDeletes();
+        });
+        app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('tests.records', 'tests', ProbeRestoredModel::class));
+        QueueProbeInstallation::install();
+        $foreign = ProbeRestoredModel::create(['tenant_id' => $this->b->value, 'name' => 'foreign']);
+    }
+    $probe = app(TenantRunner::class)->run($this->a, fn (): ProbeTenantJob => new ProbeTenantJob(record: $foreign));
+    $payload = json_decode(queueProbePayload($this->a, $probe), true, flags: JSON_THROW_ON_ERROR);
+    if (! $foreignOwner) {
+        $payload['data']['nvl_tenancy']['tenant_id'] = $this->b->value;
+    }
+    $raw = json_encode($payload, JSON_THROW_ON_ERROR);
+    $job = new SyncJob(app(), $raw, 'sync', 'default');
+
+    expect(fn () => Event::dispatch(new JobProcessing('sync', $job)))
+        ->toThrow(TenantBoundaryViolation::class, TenantQueueQuarantine::REJECTION_PREFIX);
+    $job->fail(new RuntimeException('Synchronous exception path.'));
+    expect($job->isDeleted())->toBeTrue()
+        ->and(ProbeTenantJob::$observations)->toBe([])
+        ->and(ProbeRestoredModel::$restored)->toBe([])
+        ->and(DB::table('failed_jobs')->count())->toBe(1)
+        ->and(DB::table('failed_jobs')->value('payload'))->toBe($raw)
+        ->and(DB::table('failed_jobs')->value('exception'))->toContain(TenantQueueQuarantine::REJECTION_PREFIX);
+})->with(['carried envelope mismatch' => false, 'wrong owner model' => true]);
 
 it('permits only scalar registered global jobs and refuses spoofed command classes before deserialization', function (): void {
     $class = MaintenanceProbeJob::class;
@@ -379,14 +426,14 @@ it('validates chained command envelopes before native chain deserialization', fu
 });
 
 it('preserves disabled legacy dispatch but rejects disabled adopted storage', function (): void {
-    config()->set('tenancy.enabled', false);
+    config()->set('nvl-tenancy.enabled', false);
     app()->forgetScopedInstances();
     MaintenanceProbeJob::$executions = 0;
     Queue::push(new MaintenanceProbeJob);
     expect(MaintenanceProbeJob::$executions)->toBe(1);
     app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('tests.records', 'tests', OwnedRecord::class));
     QueueProbeInstallation::install();
-    config()->set('tenancy.enabled', false);
+    config()->set('nvl-tenancy.enabled', false);
     app()->forgetScopedInstances();
     expect(fn () => Queue::push(new MaintenanceProbeJob))->toThrow(TenantSchemaNotReady::class)
         ->and(MaintenanceProbeJob::$executions)->toBe(1);
@@ -542,7 +589,7 @@ it('rejects a native afterResponse batch published in a later unrelated scope', 
 });
 
 it('accepts pre-installation legacy object payloads only in disabled unadopted workers', function (): void {
-    config()->set('tenancy.enabled', false);
+    config()->set('nvl-tenancy.enabled', false);
     app()->forgetScopedInstances();
     MaintenanceProbeJob::$executions = 0;
     $payload = (new ReflectionMethod(Queue::connection('sync'), 'createPayload'))->invoke(Queue::connection('sync'), new MaintenanceProbeJob, 'default');
@@ -555,7 +602,7 @@ it('accepts pre-installation legacy object payloads only in disabled unadopted w
 it('checks native null connection identity before normal and failure restoration', function (bool $failure, bool $differentDefault): void {
     $originalDefault = DB::getDefaultConnection();
     config()->set('database.connections.queue_canonical', config('database.connections.'.$originalDefault));
-    config()->set('tenancy.connection', 'queue_canonical');
+    config()->set('nvl-tenancy.connection', 'queue_canonical');
     DB::setDefaultConnection('queue_canonical');
     app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('tests.records', 'tests', QueueNamedConnectionModel::class));
     QueueProbeInstallation::install();
@@ -628,7 +675,7 @@ it('admits disabled direct batch reads before any callback object restoration', 
         });
     }
     $record = ProbeRestoredModel::create(['tenant_id' => $this->a->value, 'name' => 'batch model']);
-    config()->set('tenancy.enabled', false);
+    config()->set('nvl-tenancy.enabled', false);
     app()->forgetScopedInstances();
     $probe = new ProbeTenantJob;
     $pending = Bus::batch([])->then(static function () use ($record, $probe): void {

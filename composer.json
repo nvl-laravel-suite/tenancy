@@ -14,7 +14,7 @@
         "ext-mbstring": "*",
         "ext-pdo": "*",
         "laravel/framework": "^13.0",
-        "nvl/core": "^2.0",
+        "nvl/core": "^5.0",
         "symfony/http-foundation": "^7.2 || ^8.0",
         "symfony/http-kernel": "^7.2 || ^8.0"
     },
@@ -53,7 +53,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "2.x-dev"
+            "dev-main": "5.x-dev"
         },
         "laravel": {
             "providers": [
@@ -80,7 +80,9 @@
             "/vendor",
             "/.gitattributes",
             "/.gitignore",
-            "/composer.lock"
+            "/composer.lock",
+            "/.DS_Store",
+            "/**/.DS_Store"
         ]
     },
     "minimum-stability": "stable",

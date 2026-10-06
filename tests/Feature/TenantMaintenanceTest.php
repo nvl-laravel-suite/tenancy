@@ -46,14 +46,15 @@ use function Illuminate\Support\defer;
 
 function installTenancyCoreSchemaForMaintenance(): void
 {
-    config()->set('tenancy.migrations.enabled', true);
+    config()->set('nvl-tenancy.migrations.enabled', true);
     (new TenancyServiceProvider(app()))->boot();
     Artisan::call('migrate', ['--force' => true]);
 }
 
 beforeEach(function (): void {
+    config()->set('nvl-tenancy.enabled', true);
+    (new TenancyServiceProvider(app()))->register();
     app(TenantGlobalJobRegistry::class)->register(MaintenanceProbeJob::class);
-    config()->set('tenancy.enabled', true);
     $this->tenant = new TenantId('10000000-0000-4000-8000-000000000001');
     $this->operation = new PlatformOperation('recovery', 'user', 'operator');
     $this->directory = new ArrayTenantDirectory([$this->tenant->value => new TenantDescriptor($this->tenant, TenantStatus::Suspended)]);
@@ -97,7 +98,7 @@ it('revokes recovery on exception while preserving its durable audit', function 
 it('requires feature activation maintenance mode authorization and known identity', function (string $denial, string $exception): void {
     installTenancyCoreSchemaForMaintenance();
     match ($denial) {
-        'disabled' => config()->set('tenancy.enabled', false),
+        'disabled' => config()->set('nvl-tenancy.enabled', false),
         'online' => app(MaintenanceMode::class)->deactivate(),
         'unauthorized' => app()->instance(PlatformAccess::class, new DenyPlatformAccess),
         'unknown' => $this->directory->tenants = [],
@@ -194,7 +195,7 @@ it('does not admit a new privileged operation inside the audit transaction', fun
 
 it('allows explicit audited platform provisioning while tenancy is disabled', function (): void {
     installTenancyCoreSchemaForMaintenance();
-    config()->set('tenancy.enabled', false);
+    config()->set('nvl-tenancy.enabled', false);
     expect(app(TenantRunner::class)->platform($this->operation, fn () => app(TenantContext::class)->snapshot()->mode))
         ->toBe(TenantContextMode::Platform);
     expect(app(TenantContext::class)->snapshot()->mode)->toBe(TenantContextMode::Disabled)

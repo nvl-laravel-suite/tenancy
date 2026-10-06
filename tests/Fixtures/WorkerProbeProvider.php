@@ -19,16 +19,19 @@ use Nvl\Support\Tenancy\ValueObjects\TenantResourceDefinition;
 /** Isolated copied consumer configuration for actual worker subprocesses. */
 final class WorkerProbeProvider extends ServiceProvider
 {
+    /** Configure the enforcing consumer before Tenancy registers runtime queue hooks. */
     public function register(): void
     {
         $this->app->make(Repository::class)->set([
-            'tenancy.enabled' => true,
-            'tenancy.directory.driver' => 'host',
+            'nvl-tenancy.enabled' => true,
+            'nvl-tenancy.directory.driver' => 'host',
             'tenancy_queue_probe.persist' => true,
             'queue.default' => 'database',
             'queue.connections.database.connection' => 'sqlite',
             'queue.connections.database.retry_after' => 1,
-            'queue.failed.driver' => null,
+            'queue.failed.driver' => 'database-uuids',
+            'queue.failed.database' => 'sqlite',
+            'queue.failed.table' => 'failed_jobs',
         ]);
         $this->app->make(TenantResourceRegistry::class)->register(new TenantResourceDefinition('tests.records', 'tests', ProbeRestoredModel::class));
         $tenants = [];

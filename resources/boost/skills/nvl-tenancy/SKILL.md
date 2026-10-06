@@ -14,9 +14,9 @@ writes, grants, adoption adapter, and lifecycle.
 - Keep the default provider state inert: `tenancy.enabled=false` does not itself
   register schema, routes, middleware, resource adoption, or query changes.
 - Keep migration registration independent from feature activation. Register the
-  five-table core schema only when `tenancy.migrations.enabled=true`; publishing
-  the `tenancy-migrations` tag is the explicit application-owned alternative.
-- Route core schema and package tenant writes through `tenancy.connection`.
+  five-table core schema only when `nvl-tenancy.migrations.enabled=true`; publishing
+  the `nvl-tenancy-migrations` tag is the explicit application-owned alternative.
+- Route core schema and package tenant writes through `nvl-tenancy.connection`.
   Provisioning and status mutation require the effective `PackageTenantDirectory`;
   host directory writes remain host owned and tenant foreign keys are omitted.
 - Authorize and durably record bounded platform-operation facts before starting
@@ -126,6 +126,16 @@ specific scalar-only application jobs and execute in Unresolved context.
 
 Keep both CallQueuedHandler entry boundaries and native database batch option
 validation. Preserve compatible host bindings; diagnose incompatible adapters.
+Retained host handlers must implement Core's TenantQueueHandler contract and
+provide validate admission without restoring user objects, then revalidate before
+restoring commands in both call and failed. Extending TenantCallQueuedHandler and
+preserving all three methods supplies that adapter. Core checks the actual payload
+handler and guarded call method, then invokes validate before native execution or
+terminal failure handling. Inert carried-envelope and model-owner rejection enters
+raw quarantine, so native retry cannot restore rejected work. Admitted handle
+failures retain native failure handling. Host bindings remain unchanged.
+Require guarded handler and batch integrations for enabled or adopted storage;
+disabled legacy storage retains native host readiness.
 Missing old payload metadata is tolerated only with disabled tenancy and every
 participating resource unadopted. Present malformed metadata and enabled-worker
 Disabled envelopes always fail. Prove call, failed, native worker retries/exhaustion,
@@ -158,4 +168,11 @@ Run `php artisan nvl:doctor --strict --format=json` to combine checks from loade
 
 ### Brownfield storage identities
 
-Resolve all package tables through the table helper and canonical `tenancy.tables.*`, connections through `tenancy.connection` with Core/Laravel inheritance. Defaults use `nvl_tenancy_*`; migration filenames include that package slug. Never silently adopt a matching table or generic migration filename. Run shared `nvl:doctor --strict --format=json` and the explicit `nvl:schema:upgrade --package=tenancy --claim-legacy --dry-run --format=json` before upgrading owned legacy storage. Validate the complete plan and choose one migration owner. Preserve host records, constraint names and stored morph values. Deprecated config inputs last one major; canonical options take precedence.
+Resolve all package tables through the table helper and canonical `nvl-tenancy.tables.*`, connections through `nvl-tenancy.connection` with Core/Laravel inheritance. Defaults use `nvl_tenancy_*`; migration filenames include that package slug. Never silently adopt a matching table or generic migration filename. Run shared `nvl:doctor --strict --format=json` and the explicit `nvl:schema:upgrade --package=tenancy --claim-legacy --dry-run --format=json` before upgrading owned legacy storage. Validate the complete plan and choose one migration owner. Preserve host records, constraint names and stored morph values. Deprecated config inputs last one major; canonical options take precedence.
+
+## Canonical configuration ownership
+
+- Read/write `nvl-tenancy` configuration and publish only canonical `nvl-<package>-<resource>` tags. Keep logical package/tenant resource identifiers unchanged.
+- Generic config roots and unprefixed package environment names are foreign by default. For an upgrading NVL host only, select `nvl-core.compatibility.legacy_config` package IDs and `legacy_env` explicitly; both default off. Canonical presence wins, including false/null/empty values. Legacy inputs are read without writing back and are removed in major 6.
+- Use canonical `NVL_<PACKAGE>_*` variables only in config evaluation, then rebuild configuration caches and restart workers after cutover. Shared Laravel environment variables retain their names. Consult Core's versioned `support/resources/global-names.json` for all renames.
+- Old global aliases and legacy route families require separate explicit `global_aliases`/`legacy_routes` package selections. Preserve collisions and use Doctor diagnostics; never grant generic permissions automatically or claim signed-link compatibility without the same authorization/signature checks.

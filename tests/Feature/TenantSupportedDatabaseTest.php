@@ -82,8 +82,8 @@ it('rehearses consumer-owned migrations and package directory foreign keys on th
     foreach (['tenants', 'installation_state', 'operations', 'adoption_runs', 'adoption_mappings'] as $table) {
         expect(Schema::hasTable('nvl_tenancy_'.$table))->toBeFalse();
     }
-    config()->set('tenancy.migrations.enabled', false);
-    config()->set('tenancy.directory.driver', 'package');
+    config()->set('nvl-tenancy.migrations.enabled', false);
+    config()->set('nvl-tenancy.directory.driver', 'package');
     app()->forgetInstance(TenantDirectory::class);
     app()->bind(TenantDirectory::class, PackageTenantDirectory::class);
     $path = sys_get_temp_dir().'/f6-consumer-migrations-'.bin2hex(random_bytes(5));

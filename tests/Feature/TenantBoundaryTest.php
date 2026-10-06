@@ -289,7 +289,7 @@ it('rejects alternate SQL sources and unions before disabled resource admission'
     InheritedRecord::create(['tenant_id' => $tenants[0]->value, 'name' => 'adopted-private-row']);
     DB::table('nvl_tenancy_installation_state')->where('resource', 'tests.records')->delete();
     app(TenantInstallationState::class)->invalidate();
-    config()->set('tenancy.enabled', false);
+    config()->set('nvl-tenancy.enabled', false);
     $query = OwnedRecord::withoutGlobalScopes();
     if ($shape === 'union') {
         $query->select(['id', 'tenant_id', 'name'])->union(DB::table('tenancy_test_children')->select(['id', 'tenant_id', 'name']));

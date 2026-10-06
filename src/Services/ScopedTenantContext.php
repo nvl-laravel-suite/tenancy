@@ -29,7 +29,7 @@ final class ScopedTenantContext implements TenantContext
     public function __construct(Repository $configuration)
     {
         $this->current = new TenantContextSnapshot(
-            $configuration->get('tenancy.enabled') === true
+            $configuration->get('nvl-tenancy.enabled') === true
                 ? TenantContextMode::Unresolved
                 : TenantContextMode::Disabled,
         );

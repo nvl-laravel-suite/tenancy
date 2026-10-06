@@ -8,6 +8,7 @@ use Closure;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Queue\Job;
 use Illuminate\Queue\CallQueuedHandler;
+use Nvl\Support\Tenancy\Contracts\TenantQueueHandler;
 use Nvl\Support\Tenancy\Enums\TenantContextMode;
 use Nvl\Support\Tenancy\Exceptions\TenantBoundaryViolation;
 use Nvl\Support\Tenancy\Services\TenantQueuePayload;
@@ -19,12 +20,22 @@ use Nvl\Tenancy\Services\TenantQueueCommand;
 use Nvl\Tenancy\Services\TenantQueueContext;
 
 /** Restores the boundary before Laravel deserializes either execution or failure commands. @internal */
-class TenantCallQueuedHandler extends CallQueuedHandler
+class TenantCallQueuedHandler extends CallQueuedHandler implements TenantQueueHandler
 {
-    /** Identify a handler that explicitly inherits both package entry boundaries. */
+    /** Identify a handler that explicitly implements both metadata admission boundaries. */
     public static function compatible(mixed $handler): bool
     {
-        return $handler instanceof self;
+        return $handler instanceof TenantQueueHandler;
+    }
+
+    /**
+     * Admit the captured native payload without restoring execution or failure commands.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function validate(array $data): void
+    {
+        $this->withinPayload($this->legacyPayload($data), static fn (): null => null);
     }
 
     /** @param array<string, mixed> $data */
@@ -72,7 +83,7 @@ class TenantCallQueuedHandler extends CallQueuedHandler
      */
     private function legacyPayload(array $data): array
     {
-        if (! array_key_exists('nvl_tenancy', $data) && $this->container->make(Repository::class)->get('tenancy.enabled') !== true) {
+        if (! array_key_exists('nvl_tenancy', $data) && $this->container->make(Repository::class)->get('nvl-tenancy.enabled') !== true) {
             $data['nvl_tenancy'] = $this->container->make(TenantQueuePayload::class)->encode(new TenantJobEnvelope(new TenantContextSnapshot(TenantContextMode::Disabled)));
         }
 

@@ -29,7 +29,7 @@ use Nvl\Tenancy\Tests\Fixtures\TestContextParticipant;
 use Nvl\Tenancy\Tests\Fixtures\TestPlatformAccess;
 
 beforeEach(function (): void {
-    config()->set('tenancy.enabled', true);
+    config()->set('nvl-tenancy.enabled', true);
     $this->a = new TenantId('10000000-0000-4000-8000-000000000001');
     $this->b = new TenantId('10000000-0000-4000-8000-000000000002');
     $this->directory = new ArrayTenantDirectory([
@@ -84,7 +84,7 @@ it('denies inactive and unknown directory entries before work', function (): voi
 });
 
 it('rejects tenant entry when disabled', function (): void {
-    config()->set('tenancy.enabled', false);
+    config()->set('nvl-tenancy.enabled', false);
     expect(fn () => app(TenantRunner::class)->run($this->a, fn () => test()->fail('entered')))->toThrow(TenantConfigurationInvalid::class);
 });
 
@@ -220,7 +220,7 @@ it('keeps package directory fallback lazy and honors host bindings', function ()
 
 it('fails clearly for a missing host directory adapter', function (): void {
     app()->offsetUnset(TenantDirectory::class);
-    config()->set('tenancy.directory.driver', 'host');
+    config()->set('nvl-tenancy.directory.driver', 'host');
     expect(fn () => app(TenantRunner::class)->run($this->a, fn () => null))->toThrow(TenantConfigurationInvalid::class, 'host tenant directory');
 });
 

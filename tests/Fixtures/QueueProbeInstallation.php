@@ -20,7 +20,7 @@ final class QueueProbeInstallation
 {
     public static function install(): void
     {
-        config()->set(['tenancy.enabled' => true, 'tenancy.migrations.enabled' => true, 'tenancy.directory.driver' => 'host']);
+        config()->set(['nvl-tenancy.enabled' => true, 'nvl-tenancy.migrations.enabled' => true, 'nvl-tenancy.directory.driver' => 'host']);
         (new TenancyServiceProvider(app()))->boot();
         Artisan::call('migrate', ['--force' => true, '--no-interaction' => true]);
         if (! Schema::hasTable('tenancy_test_records')) {

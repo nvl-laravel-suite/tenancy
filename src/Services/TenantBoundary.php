@@ -108,11 +108,11 @@ final readonly class TenantBoundary implements \Nvl\Support\Tenancy\Contracts\Te
     /** Validate composition and schema, then recheck directory status without caching admission. */
     private function admit(TenantResourceDefinition $resource): ?TenantContextSnapshot
     {
-        if ($this->container->make(Repository::class)->get('tenancy.enabled') === true) {
+        if ($this->container->make(Repository::class)->get('nvl-tenancy.enabled') === true) {
             $this->ownership()->assertReady();
         }
         $this->container->make(TenantInstallationState::class)->assertUsable($resource->key);
-        if ($this->container->make(Repository::class)->get('tenancy.enabled') !== true) {
+        if ($this->container->make(Repository::class)->get('nvl-tenancy.enabled') !== true) {
             return null;
         }
         $snapshot = $this->snapshot($this->container->make(TenantContext::class));

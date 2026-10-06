@@ -29,6 +29,15 @@ Schema::create('jobs', function (Blueprint $table): void {
     $table->unsignedInteger('available_at');
     $table->unsignedInteger('created_at');
 });
+Schema::create('failed_jobs', function (Blueprint $table): void {
+    $table->id();
+    $table->string('uuid')->unique();
+    $table->text('connection');
+    $table->text('queue');
+    $table->longText('payload');
+    $table->longText('exception');
+    $table->timestamp('failed_at');
+});
 Schema::create('queue_probes', function (Blueprint $table): void {
     $table->id();
     $table->string('stage');
@@ -42,7 +51,7 @@ Schema::create('worker_scopes', function (Blueprint $table): void {
 });
 $a = new TenantId('10000000-0000-4000-8000-000000000001');
 $b = new TenantId('10000000-0000-4000-8000-000000000002');
-foreach ([[$a, 'A', false], [$b, 'B', false], [$a, 'malformed', false], [$a, 'failure-A', true], [$a, 'exhausted-A', false], [$a, 'retry-A', false]] as [$tenant, $label, $throws]) {
+foreach ([[$a, 'A', false], [$b, 'B', false], [$a, 'malformed', false], [$a, 'mismatch', false], [$a, 'mismatch-exhausted', false], [$a, 'failure-A', true], [$a, 'exhausted-A', false], [$a, 'retry-A', false]] as [$tenant, $label, $throws]) {
     $id = app(TenantRunner::class)->run($tenant, function () use ($label, $throws): mixed {
         $probe = new ProbeTenantJob($label, $throws);
         if ($label === 'retry-A') {
@@ -51,7 +60,7 @@ foreach ([[$a, 'A', false], [$b, 'B', false], [$a, 'malformed', false], [$a, 'fa
 
         return Queue::push($probe);
     });
-    if ($label === 'malformed') {
+    if (in_array($label, ['malformed', 'mismatch', 'mismatch-exhausted'], true)) {
         $serialized = DB::table('jobs')->where('id', $id)->value('payload');
         if (! is_string($serialized)) {
             throw new RuntimeException('Missing queued payload.');
@@ -60,10 +69,14 @@ foreach ([[$a, 'A', false], [$b, 'B', false], [$a, 'malformed', false], [$a, 'fa
         if (! is_array($payload) || ! is_array($payload['data'] ?? null) || ! is_array($payload['data']['nvl_tenancy'] ?? null)) {
             throw new RuntimeException('Missing queued envelope.');
         }
-        $payload['data']['nvl_tenancy']['version'] = 99;
+        if ($label === 'malformed') {
+            $payload['data']['nvl_tenancy']['version'] = 99;
+        } else {
+            $payload['data']['nvl_tenancy']['tenant_id'] = $b->value;
+        }
         DB::table('jobs')->where('id', $id)->update(['payload' => json_encode($payload, JSON_THROW_ON_ERROR)]);
     }
-    if ($label === 'exhausted-A') {
+    if (in_array($label, ['exhausted-A', 'mismatch-exhausted'], true)) {
         DB::table('jobs')->where('id', $id)->update(['attempts' => 1]);
     }
 }
@@ -75,7 +88,10 @@ Schema::create('tenancy_test_records', function (Blueprint $table): void {
     $table->softDeletes();
 });
 QueueProbeInstallation::install();
-foreach ([[$a, 'owned-model'], [$b, 'foreign-model']] as [$owner, $label]) {
+foreach ([[$a, 'owned-model'], [$b, 'foreign-model'], [$b, 'foreign-model-exhausted']] as [$owner, $label]) {
     $record = ProbeRestoredModel::create(['tenant_id' => $owner->value, 'name' => $label]);
-    app(TenantRunner::class)->run($a, fn () => Queue::push(new ProbeTenantJob($label, record: $record)));
+    $id = app(TenantRunner::class)->run($a, fn () => Queue::push(new ProbeTenantJob($label, record: $record)));
+    if ($label === 'foreign-model-exhausted') {
+        DB::table('jobs')->where('id', $id)->update(['attempts' => 1]);
+    }
 }

@@ -57,7 +57,7 @@ final class TenantQueueContext implements \Nvl\Support\Tenancy\Contracts\TenantQ
         $this->container->make(TenantMaintenanceLease::class)->assertQueueAllowed();
         $this->container->make(TenantAdoptionScope::class)->assertQueueAllowed();
         $this->container->make(TenantQueuePayload::class)->encode($envelope);
-        $enabled = $this->container->make(Repository::class)->get('tenancy.enabled') === true;
+        $enabled = $this->container->make(Repository::class)->get('nvl-tenancy.enabled') === true;
         $mode = $envelope->context->mode;
         if (($mode === TenantContextMode::Disabled) === $enabled) {
             throw new TenantBoundaryViolation('Queued tenant mode is incompatible with this worker.');

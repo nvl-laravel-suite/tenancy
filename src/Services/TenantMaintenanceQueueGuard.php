@@ -34,6 +34,15 @@ abstract class TenantMaintenanceQueueGuard extends Queue
         }
     }
 
+    /** Remove this package's callback when a new application starts with Tenancy disabled. */
+    public static function unregister(): void
+    {
+        self::$createPayloadCallbacks = array_values(array_filter(
+            self::$createPayloadCallbacks,
+            static fn (mixed $callback): bool => $callback !== [self::class, 'payload'],
+        ));
+    }
+
     /**
      * Deny privileged publication and append only the explicitly captured scalar tenant envelope.
      *
@@ -43,6 +52,9 @@ abstract class TenantMaintenanceQueueGuard extends Queue
     public static function payload(?string $connection = null, ?string $queue = null, array $payload = []): array
     {
         $app = Container::getInstance();
+        if ($app->make('config')->get('nvl-tenancy.enabled') !== true) {
+            return [];
+        }
         if ($app->bound(TenantMaintenanceLease::class)) {
             $app->make(TenantMaintenanceLease::class)->assertQueueAllowed();
         }
@@ -57,16 +69,9 @@ abstract class TenantMaintenanceQueueGuard extends Queue
         $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
         $command = $data['command'] ?? null;
         if (! is_object($command)) {
-            if ($app->make('config')->get('tenancy.enabled') === true) {
-                throw new TenantBoundaryViolation('String jobs and custom queue handlers require an explicit tenant adapter.');
-            }
-
-            return [];
+            throw new TenantBoundaryViolation('String jobs and custom queue handlers require an explicit tenant adapter.');
         }
-        $enabled = $app->make('config')->get('tenancy.enabled') === true;
-        if (! $enabled) {
-            $envelope = new TenantJobEnvelope(new TenantContextSnapshot(TenantContextMode::Disabled));
-        } elseif ($app->make(TenantGlobalJobRegistry::class)->allows($command::class)) {
+        if ($app->make(TenantGlobalJobRegistry::class)->allows($command::class)) {
             $envelope = new TenantJobEnvelope(new TenantContextSnapshot(TenantContextMode::Unresolved));
         } else {
             $envelope = $app->make(TenantQueueCarrier::class)->envelope($command);
@@ -75,10 +80,10 @@ abstract class TenantMaintenanceQueueGuard extends Queue
             }
         }
         if (! TenantCallQueuedHandler::compatible($app->make(CallQueuedHandler::class))) {
-            throw new TenantConfigurationInvalid('The host queue handler must extend TenantCallQueuedHandler and preserve both boundaries.');
+            throw new TenantConfigurationInvalid('The host queue handler must implement TenantQueueHandler and preserve inert validation and both restoration boundaries.');
         }
 
-        if ($enabled && is_string($data['batchId'] ?? null)) {
+        if (is_string($data['batchId'] ?? null)) {
             $repository = $app->make(BatchRepository::class);
             if (! TenantDatabaseBatchRepository::compatible($repository)) {
                 throw new TenantConfigurationInvalid('Tenant batches require a compatible native database batch repository.');

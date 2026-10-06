@@ -33,7 +33,7 @@ final readonly class TenantMaintenanceRunner
      */
     public function run(TenantId $tenant, PlatformOperation $operation, Closure $callback): mixed
     {
-        if ($this->container->make(Repository::class)->get('tenancy.enabled') !== true) {
+        if ($this->container->make(Repository::class)->get('nvl-tenancy.enabled') !== true) {
             throw new TenantConfigurationInvalid('Tenant maintenance requires tenancy.enabled.');
         }
         $this->container->make(TenantOwnershipConfiguration::class)->assertReady();

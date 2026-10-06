@@ -58,7 +58,7 @@ final readonly class TenantOwnershipConfiguration implements \Nvl\Support\Tenanc
             $families[$resource->family][] = $resource;
             $this->mode($resource);
         }
-        $overrides = $this->configuration->get('tenancy.resources', []);
+        $overrides = $this->configuration->get('nvl-tenancy.resources', []);
         if (! is_array($overrides)) {
             throw new TenantConfigurationInvalid('tenancy.resources must be an array.');
         }
@@ -132,7 +132,7 @@ final readonly class TenantOwnershipConfiguration implements \Nvl\Support\Tenanc
     public function assertReady(): void
     {
         $incompatible = $this->incompatibleFamilies();
-        if ($this->configuration->get('tenancy.enabled') === true && $incompatible !== []) {
+        if ($this->configuration->get('nvl-tenancy.enabled') === true && $incompatible !== []) {
             throw new TenantConfigurationInvalid('Loaded runtime packages require tenancy integration: '.implode(', ', $incompatible).'.');
         }
         $this->validate();
@@ -146,7 +146,7 @@ final readonly class TenantOwnershipConfiguration implements \Nvl\Support\Tenanc
     public function inspect(): array
     {
         $incompatible = $this->incompatibleFamilies();
-        $enabled = $this->configuration->get('tenancy.enabled') === true;
+        $enabled = $this->configuration->get('nvl-tenancy.enabled') === true;
         if (! $enabled || $incompatible === []) {
             $this->validate();
         }
@@ -237,12 +237,12 @@ final readonly class TenantOwnershipConfiguration implements \Nvl\Support\Tenanc
 
         return hash('sha256', json_encode([
             'version' => 1,
-            'strategy' => $this->configuration->get('tenancy.strategy'),
-            'profile' => $this->configuration->get('tenancy.profile'),
+            'strategy' => $this->configuration->get('nvl-tenancy.strategy'),
+            'profile' => $this->configuration->get('nvl-tenancy.profile'),
             'connection' => $this->connections->core()->getName(),
             'directory' => [
-                'driver' => $this->configuration->get('tenancy.directory.driver'),
-                'adapter' => $this->configuration->get('tenancy.directory.adapter'),
+                'driver' => $this->configuration->get('nvl-tenancy.directory.driver'),
+                'adapter' => $this->configuration->get('nvl-tenancy.directory.adapter'),
                 'effective_adapter' => $this->container->make(TenantDirectory::class)::class,
             ],
             'resources' => $definitions,
@@ -276,7 +276,7 @@ final readonly class TenantOwnershipConfiguration implements \Nvl\Support\Tenanc
             throw new TenantConfigurationInvalid('Resource ownership contains a cycle.');
         }
         $visited[$resource->key] = true;
-        $override = $this->configuration->get('tenancy.resources.'.$resource->family);
+        $override = $this->configuration->get('nvl-tenancy.resources.'.$resource->family);
         if ($override !== null && ! in_array($override, ['tenant', 'platform'], true)) {
             throw new TenantConfigurationInvalid('Resource ownership modes must be tenant or platform.');
         }

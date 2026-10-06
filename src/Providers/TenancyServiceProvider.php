@@ -41,6 +41,7 @@ use Nvl\Support\Tenancy\Services\TenantResourceRegistry;
 use Nvl\Support\Tenancy\Services\TenantSiteAttributes;
 use Nvl\Support\Tenancy\ValueObjects\TenantSiteContext;
 use Nvl\Support\Traits\MergesPackageConfiguration;
+use Nvl\Support\Traits\RegistersNamespacedResources;
 use Nvl\Tenancy\Console\Commands\TenancyAdoptCommand;
 use Nvl\Tenancy\Console\Commands\TenancyDoctorCommand;
 use Nvl\Tenancy\Contracts\PlatformAccess;
@@ -73,6 +74,7 @@ use ReflectionFunction;
 final class TenancyServiceProvider extends ServiceProvider
 {
     use MergesPackageConfiguration;
+    use RegistersNamespacedResources;
 
     /**
      * Publish optional Tenancy configuration and operator guidance.
@@ -92,7 +94,7 @@ final class TenancyServiceProvider extends ServiceProvider
         });
 
         $this->publishes([
-            __DIR__.'/../../config/tenancy.php' => config_path('tenancy.php'),
+            __DIR__.'/../../config/nvl-tenancy.php' => config_path('nvl-tenancy.php'),
         ], 'tenancy-config');
 
         $this->publishes([
@@ -107,7 +109,10 @@ final class TenancyServiceProvider extends ServiceProvider
     {
         PackageDoctorContributor::register($this->app, 'nvl/tenancy', fn (): array => $this->app->make(TenancyDoctor::class)->inspect()['checks']);
 
-        $this->mergePackageConfiguration(__DIR__.'/../../config/tenancy.php', 'tenancy');
+        $this->mergePackageConfiguration(__DIR__.'/../../config/nvl-tenancy.php', 'tenancy');
+        if ($this->app->make('config')->get('nvl-tenancy.enabled') !== true) {
+            TenantMaintenanceQueueGuard::unregister();
+        }
         $this->app->instance('nvl.tenancy.runtime', true);
         $this->app->singleton(TenancyConfiguration::class);
         $this->app->register(TenantServiceProvider::class);
@@ -173,7 +178,7 @@ final class TenancyServiceProvider extends ServiceProvider
             if (! $directory instanceof DisabledTenantDirectory) {
                 return $directory;
             }
-            $adapter = $app->make('config')->get('tenancy.directory.adapter');
+            $adapter = $app->make('config')->get('nvl-tenancy.directory.adapter');
             if (is_string($adapter)) {
                 $configured = $app->make($adapter);
                 if (! $configured instanceof TenantDirectory) {
@@ -182,7 +187,7 @@ final class TenancyServiceProvider extends ServiceProvider
 
                 return $configured;
             }
-            if ($app->make('config')->get('tenancy.directory.driver') !== 'package') {
+            if ($app->make('config')->get('nvl-tenancy.directory.driver') !== 'package') {
                 throw new TenantConfigurationInvalid('A host tenant directory adapter must be bound.');
             }
 
@@ -192,7 +197,7 @@ final class TenancyServiceProvider extends ServiceProvider
             if (! $membership instanceof DisabledTenantMembershipAccess) {
                 return $membership;
             }
-            $adapter = $app->make('config')->get('tenancy.access.membership');
+            $adapter = $app->make('config')->get('nvl-tenancy.access.membership');
             $configured = $app->make(is_string($adapter) ? $adapter : DenyTenantMembershipAccess::class);
             if (! $configured instanceof TenantMembershipAccess) {
                 throw new TenantConfigurationInvalid('The membership adapter must implement TenantMembershipAccess.');
@@ -213,6 +218,9 @@ final class TenancyServiceProvider extends ServiceProvider
             return $site;
         });
         $this->app->bind('Nvl\\Tenancy\\ValueObjects\\TenantSiteContext', static fn (Container $app): TenantSiteContext => $app->make(TenantSiteContext::class));
+        if ($this->app->make('config')->get('nvl-tenancy.enabled') !== true) {
+            return;
+        }
         foreach ([QueueFactory::class, DeferredCallbackCollection::class] as $dispatchBoundary) {
             $this->app->beforeResolving($dispatchBoundary, static function (): void {
                 Container::getInstance()->make(TenantMaintenanceLease::class)->assertQueueAllowed();
@@ -264,11 +272,11 @@ final class TenancyServiceProvider extends ServiceProvider
     private function registerConfiguredAdapters(): void
     {
         $adapters = [
-            TenantDirectory::class => config('tenancy.directory.adapter'),
-            TenantHttpResolver::class => config('tenancy.resolvers.http'),
-            TenantSiteResolver::class => config('tenancy.resolvers.public_site'),
-            TenantMembershipAccess::class => config('tenancy.access.membership'),
-            PlatformAccess::class => config('tenancy.access.platform'),
+            TenantDirectory::class => config('nvl-tenancy.directory.adapter'),
+            TenantHttpResolver::class => config('nvl-tenancy.resolvers.http'),
+            TenantSiteResolver::class => config('nvl-tenancy.resolvers.public_site'),
+            TenantMembershipAccess::class => config('nvl-tenancy.access.membership'),
+            PlatformAccess::class => config('nvl-tenancy.access.platform'),
         ];
 
         foreach ($adapters as $contract => $adapter) {
@@ -287,7 +295,7 @@ final class TenancyServiceProvider extends ServiceProvider
             $path => database_path('migrations'),
         ], 'tenancy-migrations');
 
-        if (config('tenancy.migrations.enabled') === true) {
+        if (config('nvl-tenancy.migrations.enabled') === true) {
             $this->loadMigrationsFrom($path);
         }
     }
@@ -302,7 +310,7 @@ final class TenancyServiceProvider extends ServiceProvider
         ] as $contract => $fallback) {
             $this->app->beforeResolving($contract, static function (string $abstract, array $parameters, Container $app) use ($contract, $fallback): void {
                 if (! $app->bound($contract)) {
-                    if ($contract === TenantDirectory::class && $app->make('config')->get('tenancy.directory.driver') !== 'package') {
+                    if ($contract === TenantDirectory::class && $app->make('config')->get('nvl-tenancy.directory.driver') !== 'package') {
                         throw new TenantConfigurationInvalid('A host tenant directory adapter must be bound.');
                     }
                     $app->bind($contract, $fallback);

@@ -22,6 +22,6 @@ abstract class TenancySupportedDatabaseTestCase extends TenancyDatabaseTestCase
         $app['config']->set('queue.batching.database', $driver);
         $app['config']->set('queue.connections.database.connection', $driver);
         $app['config']->set('queue.failed.database', $driver);
-        $app['config']->set('tenancy.directory.driver', 'host');
+        $app['config']->set('nvl-tenancy.directory.driver', 'host');
     }
 }

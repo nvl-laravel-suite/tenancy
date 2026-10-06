@@ -22,7 +22,7 @@ final class F4InstallationFixture
      */
     public static function install(string $state = 'active', ?string $hash = null): array
     {
-        config()->set(['tenancy.enabled' => true, 'tenancy.migrations.enabled' => true]);
+        config()->set(['nvl-tenancy.enabled' => true, 'nvl-tenancy.migrations.enabled' => true]);
         (new TenancyServiceProvider(app()))->boot();
         Artisan::call('migrate', ['--force' => true]);
         $tenants = [new TenantId('10000000-0000-4000-8000-000000000001'), new TenantId('10000000-0000-4000-8000-000000000002')];

@@ -44,7 +44,7 @@ class TenantDatabaseBatchRepository extends DatabaseBatchRepository
     public function store(PendingBatch $batch): Batch
     {
         $app = Container::getInstance();
-        if ($app->make('config')->get('tenancy.enabled') === true) {
+        if ($app->make('config')->get('nvl-tenancy.enabled') === true) {
             $expected = $app->make(TenantQueuePayload::class)->encode(TenantJobEnvelope::capture($app->make(TenantContext::class)));
             if (($batch->options['nvl_tenancy'] ?? null) !== $expected || $expected['mode'] !== 'tenant') {
                 throw new TenantBoundaryViolation('Tenant batches must be captured and dispatched in their producer scope.');

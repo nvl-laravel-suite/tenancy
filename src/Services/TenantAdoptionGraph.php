@@ -153,12 +153,12 @@ final readonly class TenantAdoptionGraph
             'owners' => array_intersect_key($owners, array_flip($keys)),
             'manifest' => hash('sha256', json_encode([
                 'adapters' => $manifest,
-                'strategy' => $this->configuration->get('tenancy.strategy'),
-                'profile' => $this->configuration->get('tenancy.profile'),
+                'strategy' => $this->configuration->get('nvl-tenancy.strategy'),
+                'profile' => $this->configuration->get('nvl-tenancy.profile'),
                 'connection' => $this->connections->core()->getName(),
                 'directory' => [
-                    'driver' => $this->configuration->get('tenancy.directory.driver'),
-                    'adapter' => $this->configuration->get('tenancy.directory.adapter'),
+                    'driver' => $this->configuration->get('nvl-tenancy.directory.driver'),
+                    'adapter' => $this->configuration->get('nvl-tenancy.directory.adapter'),
                     'effective_adapter' => $this->container->make(TenantDirectory::class)::class,
                 ],
             ], JSON_THROW_ON_ERROR)),

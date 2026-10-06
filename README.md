@@ -11,11 +11,11 @@ See the [installation and publishing guide](https://github.com/nvl-laravel-suite
 
 | Item | Value |
 |---|---|
-| Installed through | `composer require nvl/tenancy:^2.0` |
+| Installed through | `composer require nvl/tenancy:^5.0` |
 | Module identifier | `nvl/tenancy` |
 | PHP namespace | `Nvl\Tenancy` |
 | Service provider | `Nvl\Tenancy\Providers\TenancyServiceProvider` |
-| Configuration | `config/tenancy.php` |
+| Configuration | `config/nvl-tenancy.php` |
 
 ## Purpose
 
@@ -25,7 +25,7 @@ packages on Laravel 13 and PHP 8.4.
 
 The package is inert by default. Its provider registers a scoped disabled
 context, the default migration switch loads no schema, no global middleware is
-attached, and unadopted package queries remain unchanged while `tenancy.enabled` is
+attached, and unadopted package queries remain unchanged while `nvl-tenancy.enabled` is
 `false`. An adopted resource always checks its persisted marker, including when
 the feature is disabled. Queue guards are registered without capturing an application or tenant
 and act only during a recovery lease.
@@ -33,7 +33,7 @@ and act only during a recovery lease.
 ## Requirements and installation
 
 ```bash
-composer require nvl/tenancy:^2.0
+composer require nvl/tenancy:^5.0
 ```
 
 The package is inert after installation. Publish configuration only when the
@@ -41,13 +41,13 @@ application needs to change its defaults, and publish skills only when its
 agents need Tenancy guidance:
 
 ```bash
-php artisan vendor:publish --tag=tenancy-config
-php artisan vendor:publish --tag=tenancy-skills
+php artisan vendor:publish --tag=nvl-tenancy-config
+php artisan vendor:publish --tag=nvl-tenancy-skills
 ```
 
-Do not publish `tenancy-migrations` as a routine installation step. Published
+Do not publish `nvl-tenancy-migrations` as a routine installation step. Published
 migrations become application migrations and will run on the next
-`php artisan migrate`, even while `tenancy.migrations.enabled` is false.
+`php artisan migrate`, even while `nvl-tenancy.migrations.enabled` is false.
 
 Laravel auto-discovers `Nvl\Tenancy\Providers\TenancyServiceProvider`. The
 package requires `nvl/core` from the 2.x package line. NVL Auth
@@ -77,7 +77,7 @@ registers the package source; it adds no ownership mutation DTO.
 
 ## Configuration
 
-The shipped `config/tenancy.php` selects the first-release shared-database
+The shipped `config/nvl-tenancy.php` selects the first-release shared-database
 strategy and keeps activation and optional migrations disabled. Configuration
 contains deployment-level scalars, literal arrays, and adapter class strings;
 closures and current tenant or actor values are rejected.
@@ -102,24 +102,24 @@ directory fallback fails with `TenantSchemaNotReady` until its optional store
 exists. Selecting a host directory requires a host adapter.
 
 Core storage is a separate opt-in migration set. Set
-`tenancy.migrations.enabled=true` to register it with Laravel migrations, or
-publish `tenancy-migrations` when the application owns the migration copy. The
-set runs on `tenancy.connection` and creates the tenant directory, installation
+`nvl-tenancy.migrations.enabled=true` to register it with Laravel migrations, or
+publish `nvl-tenancy-migrations` when the application owns the migration copy. The
+set runs on `nvl-tenancy.connection` and creates the tenant directory, installation
 state, privileged-operation audit, adoption runs, and reviewed adoption mappings.
 Feature activation never registers this path by itself. A package-owned effective
 directory receives tenant foreign keys; an effective host directory keeps its
 application tenant identifiers as verified references.
 
 For an application-owned migration copy, keep
-`tenancy.migrations.enabled=false`, publish once with
-`php artisan vendor:publish --tag=tenancy-migrations`, review the files, then
+`nvl-tenancy.migrations.enabled=false`, publish once with
+`php artisan vendor:publish --tag=nvl-tenancy-migrations`, review the files, then
 run `php artisan migrate`. For vendor-owned migrations, enable the setting
 before running `php artisan migrate` and leave the tag unpublished. Never run
 both sources.
 
 ### Runtime compatibility and readiness
 
-Provider selection, `tenancy.enabled`, ownership configuration, and persisted
+Provider selection, `nvl-tenancy.enabled`, ownership configuration, and persisted
 adoption readiness are separate facts. The standalone package exposes
 `nvl:tenancy:doctor --json` for read-only storage probes, registered resource
 inspection, installation state, and interrupted runs. Its configuration
@@ -155,10 +155,10 @@ bounded diagnostic labels.
 
 ### Choose one migration owner
 
-For package-owned migrations, set `tenancy.migrations.enabled=true` and do not publish
-`tenancy-migrations`. For application-owned migrations, publish with
-`php artisan vendor:publish --tag=tenancy-migrations` and keep
-`tenancy.migrations.enabled=false`. Never run both migration copies. Publication
+For package-owned migrations, set `nvl-tenancy.migrations.enabled=true` and do not publish
+`nvl-tenancy-migrations`. For application-owned migrations, publish with
+`php artisan vendor:publish --tag=nvl-tenancy-migrations` and keep
+`nvl-tenancy.migrations.enabled=false`. Never run both migration copies. Publication
 uses Laravel's timestamp-aware migration API; released core migration files are
 immutable. Both modes are independent of the feature flag and resource adoption.
 
@@ -378,7 +378,7 @@ or `null` for completion; processed counts cannot exceed the requested limit.
    `PlatformAccess` adapter that authenticates and authorizes the CLI operator;
    `--actor-type`, `--actor-id` and `--purpose` identify the audit, not a privilege.
 3. Before schemas become prepared, use a validated maintenance bootstrap with
-   `SETTINGS_CONFIG_OVERRIDES=false` (`settings.overrides.enabled=false`) so Settings
+   `NVL_SETTINGS_CONFIG_OVERRIDES=false` (`nvl-settings.overrides.enabled=false`) so Settings
    cannot derive bootstrap config by reading blocked resources. Build that config
    cache before preparing, or use an isolated uncached maintenance environment;
    changing an environment variable does not replace an already cached true value.
@@ -526,9 +526,22 @@ Disabled legacy object dispatch, including pre-installation payloads without met
 an enabled worker never accepts a Disabled envelope.
 
 The provider uses `bindIf(CallQueuedHandler::class, TenantCallQueuedHandler::class)`.
-An existing host implementation must extend `TenantCallQueuedHandler` and preserve
-both entry points (call the parent implementations when overriding). Doctor reports
-incompatible handler bindings; publication also rejects them. Retained services
+An existing host implementation is retained. It must implement Core's
+`TenantQueueHandler` contract: `validate()` admits the scoped envelope and inert
+command/model graph without restoring user objects, while `call()` and `failed()`
+revalidate before restoration. Extending `TenantCallQueuedHandler` and preserving
+all three methods is the supplied adapter. Core invokes `validate()` at
+`JobProcessing`, before native execution and terminal failure handling. Admission
+errors, including carried-envelope and model-owner mismatches, enter raw
+quarantine; ordinary admitted `handle()` failures retain native failure handling.
+Core inspects
+the actual payload handler and permits only its guarded `call` entry point when
+delegating to enabled Tenancy. A retained incompatible handler quarantines
+previously captured NVL work before command restoration; ordinary host jobs
+without NVL metadata keep their handler. Doctor requires compatible handlers and
+batch repositories when Tenancy is enabled or resource storage is adopted;
+disabled legacy storage preserves the host implementations. Publication also
+rejects incompatible handlers. Retained services
 resolve the current scoped context on every entry. String jobs and other custom
 handler routes require a separate explicit adapter. Queue payload hooks must merge
 nested `data`; overwriting the envelope causes worker rejection.
@@ -603,7 +616,7 @@ Without `nvl/tenancy`, the disabled boundary preserves validated legacy queries 
 
 ## Next major: isolated schema identities
 
-Use `tenancy.tables.<logical-key>` for every table and `tenancy.connection` for its database connection. Null connection inherits `nvl-core.connection`, then Laravel's default. Tables are resolved at runtime by the package table definition helper.
+Use `nvl-tenancy.tables.<logical-key>` for every table and `nvl-tenancy.connection` for its database connection. Null connection inherits `nvl-core.connection`, then Laravel's default. Tables are resolved at runtime by the package table definition helper.
 
 | Logical key | New default | Previous name |
 | --- | --- | --- |
@@ -613,4 +626,8 @@ Use `tenancy.tables.<logical-key>` for every table and `tenancy.connection` for 
 | `operations` | `nvl_tenancy_operations` | `nvl_tenancy_operations` |
 | `adoption_mappings` | `nvl_tenancy_adoption_mappings` | `nvl_tenancy_adoption_mappings` |
 
-Migration filenames contain `nvl_tenancy_`. Existing installations must complete the upgrade in `UPGRADING.md` before running new migrations. A pending creator rejects an existing target before any migration in the batch runs; legacy storage with old history needs an ownership decision.
+Migration filenames contain `nvl_tenancy_`. Existing installations must complete the upgrade in `UPGRADING.md` before running new migrations. A pending creator rejects an existing target before that owned migration runs; use `nvl:schema:preflight` for an explicit whole-batch check; legacy storage with old history needs an ownership decision.
+
+## Canonical configuration ownership
+
+Use `nvl-tenancy` settings in `config/nvl-tenancy.php` and canonical package environment names. Old generic roots are foreign unless an upgrading NVL host explicitly selects them in Core's default-off compatibility. Canonical false/null/empty values win; no old roots are populated or written back. Keep logical package/resource IDs unchanged. Review [Core's rename inventory and cache/worker cutover](https://github.com/nvl-laravel-suite/core/blob/main/UPGRADING.md#major-5-canonical-configuration-and-environment).

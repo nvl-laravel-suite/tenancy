@@ -40,8 +40,8 @@ abstract class TenancyTestCase extends Orchestra
             'queue.batching.database' => 'sqlite',
             'queue.connections.database.connection' => 'sqlite',
             'queue.failed.database' => 'sqlite',
-            'tenancy.enabled' => false,
-            'tenancy.migrations.enabled' => false,
+            'nvl-tenancy.enabled' => false,
+            'nvl-tenancy.migrations.enabled' => false,
         ]);
     }
 }

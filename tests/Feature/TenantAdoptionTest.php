@@ -241,7 +241,7 @@ it('rejects immutable input or installation mutations on resume', function (stri
     match ($mutation) {
         'mapping' => DB::table('nvl_tenancy_adoption_mappings')->update(['record_id' => 'changed']),
         'metadata' => DB::table('nvl_tenancy_adoption_mappings')->update(['metadata' => json_encode(['destination' => ['id' => $tenant->value]])]),
-        'configuration' => config(['tenancy.profile' => 'platform']),
+        'configuration' => config(['nvl-tenancy.profile' => 'platform']),
         'marker' => DB::table('nvl_tenancy_installation_state')->update(['schema_version' => 2]),
         'packages' => DB::table('nvl_tenancy_adoption_runs')->update(['packages' => '["unknown"]']),
     };
@@ -350,7 +350,7 @@ it('denies caller-owned transactions before audit or DDL and blocks ordinary bou
 it('reports doctor formats read-only and applies strict warning exit semantics', function (): void {
     app(TenantAdoptionRegistry::class)->register('csv', EmptyAdoptionAdapter::class);
     app(TenantAdoptionCoordinator::class)->prepare(['csv'], [], adoptionOperation());
-    config(['tenancy.enabled' => false]);
+    config(['nvl-tenancy.enabled' => false]);
     $before = DB::table('nvl_tenancy_operations')->count();
     foreach ([['--json' => true], ['--format' => 'json']] as $options) {
         expect(Artisan::call('nvl:tenancy:doctor', $options))->toBe(0);
@@ -427,7 +427,7 @@ it('rejects unknown packages and connection aliases that do not share the Larave
     foreach ([[], ['unknown']] as $packages) {
         expect(fn () => $coordinator->prepare($packages, [], adoptionOperation()))->toThrow(TenantConfigurationInvalid::class);
     }
-    config(['database.connections.other' => config('database.connections.sqlite'), 'tenancy.connection' => 'other']);
+    config(['database.connections.other' => config('database.connections.sqlite'), 'nvl-tenancy.connection' => 'other']);
     expect(fn () => app(TenantAdoptionGraph::class)->resolve(['tests']))->toThrow(TenantConfigurationInvalid::class, 'canonical core connection');
 });
 
@@ -488,7 +488,7 @@ it('keeps manifest-only configuration identity immutable on resumption', functio
     app(TenantAdoptionRegistry::class)->register('csv', EmptyAdoptionAdapter::class);
     $coordinator = app(TenantAdoptionCoordinator::class);
     $plan = $coordinator->prepare(['csv'], [], adoptionOperation());
-    config(['tenancy.profile' => 'platform']);
+    config(['nvl-tenancy.profile' => 'platform']);
     expect(fn () => $coordinator->resume($plan->id))->toThrow(TenantConfigurationInvalid::class);
 });
 
@@ -497,7 +497,7 @@ it('does not publish active markers when structural input changes inside an adap
     $coordinator = app(TenantAdoptionCoordinator::class);
     $plan = $coordinator->prepare(['tests'], [], adoptionOperation());
     $coordinator->backfill($plan, 2, adoptionOperation());
-    $adapter->afterActivate = static fn () => config(['tenancy.profile' => 'platform']);
+    $adapter->afterActivate = static fn () => config(['nvl-tenancy.profile' => 'platform']);
     expect(fn () => $coordinator->activate($plan, adoptionOperation()))->toThrow(TenantConfigurationInvalid::class)
         ->and(DB::table('nvl_tenancy_installation_state')->value('state'))->toBe('prepared');
 });
@@ -681,7 +681,7 @@ it('rejects final verification changes before publishing active markers and pres
             return;
         }
         match ($change) {
-            'profile' => config(['tenancy.profile' => 'platform']),
+            'profile' => config(['nvl-tenancy.profile' => 'platform']),
             'input' => DB::table('nvl_tenancy_adoption_mappings')->where('run_id', $plan->id)->update(['record_id' => 'changed']),
             'maintenance' => app(MaintenanceMode::class)->deactivate(),
             'session' => $connection->setPdo(new PDO('sqlite::memory:')),
@@ -706,7 +706,7 @@ it('revalidates standalone verification callbacks while leaving run checkpoints 
     $coordinator->backfill($plan, 2, adoptionOperation());
     $before = DB::table('nvl_tenancy_adoption_runs')->first();
     $audits = DB::table('nvl_tenancy_operations')->count();
-    $adapter->afterVerify = static fn () => config(['tenancy.profile' => 'platform']);
+    $adapter->afterVerify = static fn () => config(['nvl-tenancy.profile' => 'platform']);
     expect(fn () => $coordinator->verify($plan))->toThrow(TenantConfigurationInvalid::class)
         ->and(DB::table('nvl_tenancy_adoption_runs')->first())->toEqual($before)
         ->and(DB::table('nvl_tenancy_operations')->count())->toBe($audits);
@@ -793,17 +793,17 @@ it('invalidates primed probes when fenced ingestion commit callbacks fail after 
         $coordinator->backfill($first, 2, adoptionOperation());
         $coordinator->activate($first, adoptionOperation());
     } else {
-        config(['tenancy.enabled' => false]);
+        config(['nvl-tenancy.enabled' => false]);
     }
     $installation = app(TenantInstallationState::class);
     $installation->assertUsable('tests.records');
-    config(['tenancy.enabled' => true]);
+    config(['nvl-tenancy.enabled' => true]);
     $queue = Queue::connection('sync');
     $adapter->onValidate = static fn () => $queue->push((new MaintenanceProbeJob)->afterCommit());
     expect(fn () => $coordinator->prepare(['tests'], $mapping, adoptionOperation()))->toThrow(TenantBoundaryViolation::class)
         ->and(DB::table('nvl_tenancy_installation_state')->value('state'))->toBe('prepared');
     if ($initial === 'legacy') {
-        config(['tenancy.enabled' => false]);
+        config(['nvl-tenancy.enabled' => false]);
     }
     expect(fn () => $installation->assertUsable('tests.records'))->toThrow(TenantSchemaNotReady::class);
 })->with(['active', 'legacy']);
