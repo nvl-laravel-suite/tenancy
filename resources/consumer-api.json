@@ -1,0 +1,299 @@
+{
+    "schema_version": 1,
+    "package": "nvl/tenancy",
+    "psr4": {
+        "Nvl\\Tenancy\\": "src"
+    },
+    "symbols": {
+        "Nvl\\Tenancy\\Actions\\ChangeTenantStatusAction": {
+            "kind": "class",
+            "file": "src/Actions/ChangeTenantStatusAction.php",
+            "methods": [
+                "__construct",
+                "execute"
+            ],
+            "properties": [],
+            "constants": []
+        },
+        "Nvl\\Tenancy\\Actions\\ProvisionTenantAction": {
+            "kind": "class",
+            "file": "src/Actions/ProvisionTenantAction.php",
+            "methods": [
+                "__construct",
+                "execute"
+            ],
+            "properties": [],
+            "constants": []
+        },
+        "Nvl\\Tenancy\\Contracts\\PlatformAccess": {
+            "kind": "interface",
+            "file": "src/Contracts/PlatformAccess.php",
+            "methods": [
+                "authorize"
+            ],
+            "properties": [],
+            "constants": []
+        },
+        "Nvl\\Tenancy\\Contracts\\TenantContext": {
+            "kind": "interface",
+            "file": "src/Contracts/TenantContext.php",
+            "methods": [
+                "requireTenant",
+                "snapshot"
+            ],
+            "properties": [],
+            "constants": [],
+            "alias_of": "Nvl\\Support\\Tenancy\\Contracts\\TenantContext"
+        },
+        "Nvl\\Tenancy\\Contracts\\TenantContextParticipant": {
+            "kind": "interface",
+            "file": "src/Contracts/TenantContextParticipant.php",
+            "methods": [
+                "enter"
+            ],
+            "properties": [],
+            "constants": [],
+            "alias_of": "Nvl\\Support\\Tenancy\\Contracts\\TenantContextParticipant"
+        },
+        "Nvl\\Tenancy\\Contracts\\TenantDirectory": {
+            "kind": "interface",
+            "file": "src/Contracts/TenantDirectory.php",
+            "methods": [
+                "find"
+            ],
+            "properties": [],
+            "constants": [],
+            "alias_of": "Nvl\\Support\\Tenancy\\Contracts\\TenantDirectory"
+        },
+        "Nvl\\Tenancy\\Contracts\\TenantHttpResolver": {
+            "kind": "interface",
+            "file": "src/Contracts/TenantHttpResolver.php",
+            "methods": [
+                "resolve"
+            ],
+            "properties": [],
+            "constants": [],
+            "alias_of": "Nvl\\Support\\Tenancy\\Contracts\\TenantHttpResolver"
+        },
+        "Nvl\\Tenancy\\Contracts\\TenantMembershipAccess": {
+            "kind": "interface",
+            "file": "src/Contracts/TenantMembershipAccess.php",
+            "methods": [
+                "assertMember"
+            ],
+            "properties": [],
+            "constants": [],
+            "alias_of": "Nvl\\Support\\Tenancy\\Contracts\\TenantMembershipAccess"
+        },
+        "Nvl\\Tenancy\\Contracts\\TenantQueuedJob": {
+            "kind": "interface",
+            "file": "src/Contracts/TenantQueuedJob.php",
+            "methods": [
+                "tenantJobEnvelope"
+            ],
+            "properties": [],
+            "constants": [],
+            "alias_of": "Nvl\\Support\\Tenancy\\Contracts\\TenantQueuedJob"
+        },
+        "Nvl\\Tenancy\\Contracts\\TenantSiteResolver": {
+            "kind": "interface",
+            "file": "src/Contracts/TenantSiteResolver.php",
+            "methods": [
+                "resolve"
+            ],
+            "properties": [],
+            "constants": []
+        },
+        "Nvl\\Tenancy\\Enums\\TenantContextMode": {
+            "kind": "enum",
+            "file": "src/Enums/TenantContextMode.php",
+            "methods": [
+                "cases",
+                "from",
+                "tryFrom"
+            ],
+            "properties": [
+                "name",
+                "value"
+            ],
+            "constants": [
+                "Disabled",
+                "Platform",
+                "Tenant",
+                "Unresolved"
+            ],
+            "alias_of": "Nvl\\Support\\Tenancy\\Enums\\TenantContextMode"
+        },
+        "Nvl\\Tenancy\\Enums\\TenantResourceKind": {
+            "kind": "enum",
+            "file": "src/Enums/TenantResourceKind.php",
+            "methods": [
+                "cases",
+                "from",
+                "tryFrom"
+            ],
+            "properties": [
+                "name",
+                "value"
+            ],
+            "constants": [
+                "Inherited",
+                "Platform",
+                "Root"
+            ],
+            "alias_of": "Nvl\\Support\\Tenancy\\Enums\\TenantResourceKind"
+        },
+        "Nvl\\Tenancy\\Enums\\TenantStatus": {
+            "kind": "enum",
+            "file": "src/Enums/TenantStatus.php",
+            "methods": [
+                "cases",
+                "from",
+                "tryFrom"
+            ],
+            "properties": [
+                "name",
+                "value"
+            ],
+            "constants": [
+                "Active",
+                "Deleted",
+                "Suspended"
+            ],
+            "alias_of": "Nvl\\Support\\Tenancy\\Enums\\TenantStatus"
+        },
+        "Nvl\\Tenancy\\Services\\TenantContextParticipants": {
+            "kind": "class",
+            "file": "src/Services/TenantContextParticipants.php",
+            "methods": [
+                "register"
+            ],
+            "properties": [],
+            "constants": [],
+            "alias_of": "Nvl\\Support\\Tenancy\\Services\\TenantContextParticipants"
+        },
+        "Nvl\\Tenancy\\Services\\TenantResourceRegistry": {
+            "kind": "class",
+            "file": "src/Services/TenantResourceRegistry.php",
+            "methods": [
+                "all",
+                "forModel",
+                "get",
+                "hasModel",
+                "register"
+            ],
+            "properties": [],
+            "constants": [],
+            "alias_of": "Nvl\\Support\\Tenancy\\Services\\TenantResourceRegistry"
+        },
+        "Nvl\\Tenancy\\ValueObjects\\PlatformOperation": {
+            "kind": "class",
+            "file": "src/ValueObjects/PlatformOperation.php",
+            "methods": [
+                "__construct"
+            ],
+            "properties": [
+                "actorId",
+                "actorType",
+                "purpose"
+            ],
+            "constants": [],
+            "alias_of": "Nvl\\Support\\Tenancy\\ValueObjects\\PlatformOperation"
+        },
+        "Nvl\\Tenancy\\ValueObjects\\TenantContextSnapshot": {
+            "kind": "class",
+            "file": "src/ValueObjects/TenantContextSnapshot.php",
+            "methods": [
+                "__construct"
+            ],
+            "properties": [
+                "mode",
+                "tenantId"
+            ],
+            "constants": [],
+            "alias_of": "Nvl\\Support\\Tenancy\\ValueObjects\\TenantContextSnapshot"
+        },
+        "Nvl\\Tenancy\\ValueObjects\\TenantDescriptor": {
+            "kind": "class",
+            "file": "src/ValueObjects/TenantDescriptor.php",
+            "methods": [
+                "__construct"
+            ],
+            "properties": [
+                "id",
+                "status"
+            ],
+            "constants": [],
+            "alias_of": "Nvl\\Support\\Tenancy\\ValueObjects\\TenantDescriptor"
+        },
+        "Nvl\\Tenancy\\ValueObjects\\TenantId": {
+            "kind": "class",
+            "file": "src/ValueObjects/TenantId.php",
+            "methods": [
+                "__construct"
+            ],
+            "properties": [
+                "value"
+            ],
+            "constants": [],
+            "alias_of": "Nvl\\Support\\Tenancy\\ValueObjects\\TenantId"
+        },
+        "Nvl\\Tenancy\\ValueObjects\\TenantJobEnvelope": {
+            "kind": "class",
+            "file": "src/ValueObjects/TenantJobEnvelope.php",
+            "methods": [
+                "__construct",
+                "capture"
+            ],
+            "properties": [
+                "context",
+                "version"
+            ],
+            "constants": [],
+            "alias_of": "Nvl\\Support\\Tenancy\\ValueObjects\\TenantJobEnvelope"
+        },
+        "Nvl\\Tenancy\\ValueObjects\\TenantResourceDefinition": {
+            "kind": "class",
+            "file": "src/ValueObjects/TenantResourceDefinition.php",
+            "methods": [
+                "__construct",
+                "usesOwnershipKey"
+            ],
+            "properties": [
+                "allowsPlatformCatalog",
+                "allowsPlatformRows",
+                "family",
+                "key",
+                "kind",
+                "model",
+                "parentRelation",
+                "parentResource"
+            ],
+            "constants": [],
+            "alias_of": "Nvl\\Support\\Tenancy\\ValueObjects\\TenantResourceDefinition"
+        },
+        "Nvl\\Tenancy\\ValueObjects\\TenantSiteContext": {
+            "kind": "class",
+            "file": "src/ValueObjects/TenantSiteContext.php",
+            "methods": [
+                "__construct"
+            ],
+            "properties": [
+                "canonicalOrigin",
+                "site",
+                "tenantId"
+            ],
+            "constants": [],
+            "alias_of": "Nvl\\Support\\Tenancy\\ValueObjects\\TenantSiteContext"
+        }
+    },
+    "models": {},
+    "capability_relations": {},
+    "tables": {
+        "adoption_mappings": "nvl_tenancy_adoption_mappings",
+        "adoption_runs": "nvl_tenancy_adoption_runs",
+        "installation_state": "nvl_tenancy_installation_state",
+        "operations": "nvl_tenancy_operations",
+        "tenants": "nvl_tenancy_tenants"
+    }
+}
