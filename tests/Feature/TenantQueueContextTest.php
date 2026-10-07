@@ -66,9 +66,9 @@ use Nvl\Tenancy\Tests\Fixtures\UniqueProbeTenantJob;
 beforeEach(function (): void {
     config()->set('nvl-tenancy.enabled', true);
     (new TenancyServiceProvider(app()))->register();
-    config()->set('queue.batching.database', 'sqlite');
-    config()->set('queue.connections.database.connection', 'sqlite');
-    config()->set('queue.failed.database', 'sqlite');
+    config()->set('queue.batching.database', DB::getDefaultConnection());
+    config()->set('queue.connections.database.connection', DB::getDefaultConnection());
+    config()->set('queue.failed.database', DB::getDefaultConnection());
     $this->a = new TenantId('10000000-0000-4000-8000-000000000001');
     $this->b = new TenantId('10000000-0000-4000-8000-000000000002');
     app()->instance(TenantDirectory::class, new ArrayTenantDirectory([
@@ -199,7 +199,7 @@ it('quarantines rejected synchronous admission before native failure handling ca
         $table->longText('exception');
         $table->timestamp('failed_at');
     });
-    config()->set('queue.failed', ['driver' => 'database-uuids', 'database' => 'sqlite', 'table' => 'failed_jobs']);
+    config()->set('queue.failed', ['driver' => 'database-uuids', 'database' => DB::getDefaultConnection(), 'table' => 'failed_jobs']);
     app()->forgetInstance('queue.failer');
     $foreign = null;
     if ($foreignOwner) {
@@ -601,7 +601,7 @@ it('accepts pre-installation legacy object payloads only in disabled unadopted w
 
 it('checks native null connection identity before normal and failure restoration', function (bool $failure, bool $differentDefault): void {
     $originalDefault = DB::getDefaultConnection();
-    config()->set('database.connections.queue_canonical', config('database.connections.'.$originalDefault));
+    config()->set('database.connections.queue_canonical', [...config('database.connections.sqlite'), 'database' => ':memory:', 'url' => null]);
     config()->set('nvl-tenancy.connection', 'queue_canonical');
     DB::setDefaultConnection('queue_canonical');
     app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('tests.records', 'tests', QueueNamedConnectionModel::class));

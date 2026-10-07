@@ -66,6 +66,7 @@ it('bounds absent marker probes within the connection generation', function (): 
 });
 
 it('propagates a real connection failure instead of caching legacy compatibility', function (): void {
+    DB::setDefaultConnection('sqlite');
     config()->set('database.connections.sqlite.database', '/tmp/nonexistent-f4-'.Str::uuid().'.sqlite');
     DB::purge('sqlite');
     expect(fn () => app(TenantBoundary::class)->key('tests.records', 'legacy'))->toThrow(QueryException::class);
@@ -76,7 +77,7 @@ it('propagates a real connection failure instead of caching legacy compatibility
 
 it('reprobes after connection replacement and after worker scope reset', function (): void {
     app(TenantBoundary::class)->key('tests.records', 'legacy');
-    DB::purge('sqlite');
+    DB::purge(DB::getDefaultConnection());
     DB::enableQueryLog();
     app(TenantBoundary::class)->key('tests.records', 'legacy');
     expect(DB::getQueryLog())->toHaveCount(1);

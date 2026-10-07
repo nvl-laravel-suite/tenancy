@@ -167,7 +167,7 @@ it('scopes identity keys by effective connection resource context and tenant', f
     $tenants = F4InstallationFixture::install();
     $a = app(TenantRunner::class)->run($tenants[0], fn () => app(TenantBoundary::class)->key('tests.records', 'same'));
     $b = app(TenantRunner::class)->run($tenants[1], fn () => app(TenantBoundary::class)->key('tests.records', 'same'));
-    expect($a)->toBe('nvl:tenant:'.hash('sha256', '["sqlite","tests.records","tenant","10000000-0000-4000-8000-000000000001","same"]'))
+    expect($a)->toBe('nvl:tenant:'.hash('sha256', json_encode([DB::getDefaultConnection(), 'tests.records', 'tenant', $tenants[0]->value, 'same'], JSON_THROW_ON_ERROR)))
         ->and($b)->not->toBe($a);
 });
 
