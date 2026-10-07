@@ -18,7 +18,7 @@ it('runs a real database worker across tenants malformed payloads and exhausted 
 <?php
 return Illuminate\Foundation\Application::configure(basePath: dirname(__DIR__))
     ->withProviders([
-        Nvl\Support\Providers\SupportServiceProvider::class,
+        Nvl\Support\Providers\LocaleServiceProvider::class, Nvl\Support\Providers\SupportServiceProvider::class,
         Nvl\Data\Providers\DataServiceProvider::class,
         Nvl\Tenancy\Tests\Fixtures\WorkerProbeProvider::class,
         Nvl\Tenancy\Providers\TenancyServiceProvider::class,
