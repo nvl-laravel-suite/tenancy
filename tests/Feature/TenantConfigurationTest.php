@@ -89,7 +89,7 @@ it('keeps host directory precedence and validates serializable cached class conf
 it('reports feature configuration connection and adoption as separate readiness facts', function (): void {
     expect(Artisan::call('nvl:tenancy:doctor', ['--json' => true]))->toBe(0);
     $report = json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
-    expect($report['configuration'])->toMatchArray(['enabled' => false, 'profile' => 'application', 'connection' => 'sqlite', 'resources' => []])
+    expect($report['configuration'])->toMatchArray(['enabled' => false, 'profile' => 'application', 'connection' => config('database.default'), 'resources' => []])
         ->and(array_column($report['checks'], 'key'))->toContain('tenancy.configuration', 'tenancy.core');
 });
 
@@ -163,7 +163,7 @@ it('reports actual configured model tables and aliases without a schema probe', 
     app(TenantResourceRegistry::class)->register(new TenantResourceDefinition('host.records', 'host', $model::class));
     DB::connection()->enableQueryLog();
     $report = app(TenantOwnershipConfiguration::class)->inspect();
-    expect($report['resources']['host.records'])->toMatchArray(['model' => $model::class, 'table' => 'consumer_custom_records', 'connection' => 'sqlite', 'mode' => 'tenant'])
+    expect($report['resources']['host.records'])->toMatchArray(['model' => $model::class, 'table' => 'consumer_custom_records', 'connection' => config('database.default'), 'mode' => 'tenant'])
         ->and(DB::connection()->getQueryLog())->toBe([]);
 });
 
@@ -179,5 +179,5 @@ it('treats storage exceptions as diagnostic failure without exposing SQL or cred
 
 it('shows feature and connection facts in human-readable doctor output', function (): void {
     expect(Artisan::call('nvl:tenancy:doctor'))->toBe(0);
-    expect(Artisan::output())->toContain('tenancy.feature', 'disabled', 'tenancy.connection', 'sqlite');
+    expect(Artisan::output())->toContain('tenancy.feature', 'disabled', 'tenancy.connection', config('database.default'));
 });

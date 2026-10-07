@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nvl\Tenancy\Tests;
 
+use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Nvl\Data\Providers\DataServiceProvider;
 use Nvl\Support\Providers\LocaleServiceProvider;
 use Nvl\Support\Providers\SupportServiceProvider;
@@ -15,6 +16,16 @@ use Orchestra\Testbench\TestCase as Orchestra;
  */
 abstract class TenancyTestCase extends Orchestra
 {
+    use DatabaseMigrations;
+
+    /** Reset the disposable database before each case; cases replace connections and applications themselves. */
+    public function runDatabaseMigrations(): void
+    {
+        $this->beforeRefreshingDatabase();
+        $this->refreshTestDatabase();
+        $this->afterRefreshingDatabase();
+    }
+
     /**
      * Register Tenancy and its package foundations.
      *
@@ -40,6 +51,8 @@ abstract class TenancyTestCase extends Orchestra
 
         $app['config']->set([
             'database.default' => $driver,
+            'database.connections.sqlite.database' => ':memory:',
+            'database.connections.sqlite.url' => null,
             'database.connections.'.$driver.'.url' => null,
             'database.connections.'.$driver.'.database' => $database,
             'queue.batching.database' => $driver,

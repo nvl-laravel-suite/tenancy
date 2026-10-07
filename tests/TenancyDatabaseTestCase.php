@@ -43,6 +43,8 @@ abstract class TenancyDatabaseTestCase extends TestCase
 
         $app['config']->set([
             'database.default' => $driver,
+            'database.connections.sqlite.database' => ':memory:',
+            'database.connections.sqlite.url' => null,
             'database.connections.'.$driver.'.database' => $database,
             'database.connections.'.$driver.'.url' => null,
             'queue.batching.database' => $driver,

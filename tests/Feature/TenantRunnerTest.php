@@ -114,10 +114,11 @@ it('checks transactions on every participating resolved connection', function ()
 
 it('normalizes default aliases and rejects distinct connections with identical settings', function (): void {
     $connections = app(EffectiveTenantConnection::class);
-    expect($connections->name(null))->toBe('sqlite')
-        ->and($connections->assertCompatible([null, 'sqlite']))->toBeNull();
-    config()->set('database.connections.other', config('database.connections.sqlite'));
-    expect(fn () => $connections->assertCompatible(['sqlite', 'other']))->toThrow(TenantConfigurationInvalid::class);
+    $default = config('database.default');
+    expect($connections->name(null))->toBe($default)
+        ->and($connections->assertCompatible([null, $default]))->toBeNull();
+    config()->set('database.connections.other', config('database.connections.'.$default));
+    expect(fn () => $connections->assertCompatible([$default, 'other']))->toThrow(TenantConfigurationInvalid::class);
 });
 
 it('denies platform work by default including a system actor', function (): void {

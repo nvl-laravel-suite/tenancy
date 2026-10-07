@@ -160,11 +160,11 @@ it('resumes prepare interruption with markers and durable audit already visible'
 it('streams mappings and resumes a crash after committed batch writes without changing ownership', function (): void {
     $tenant = adoptionTenant();
     $adapter = adoptionAdapter();
-    foreach (['a', 'b', 'c'] as $id) {
-        DB::table('tenancy_test_records')->insert(['id' => $id, 'name' => $id, 'deleted_at' => $id === 'b' ? now() : null]);
+    foreach (['00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000003'] as $id) {
+        DB::table('tenancy_test_records')->insert(['id' => $id, 'name' => $id, 'deleted_at' => $id === '00000000-0000-4000-8000-000000000002' ? now() : null]);
     }
     $mappings = (function () use ($tenant): Generator {
-        foreach (['c', 'a', 'b'] as $id) {
+        foreach (['00000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002'] as $id) {
             yield new TenantAssignment('tests.records', $id, $tenant);
         }
     })();
@@ -180,7 +180,7 @@ it('streams mappings and resumes a crash after committed batch writes without ch
     $coordinator->activate($plan, adoptionOperation());
     expect(DB::table('tenancy_test_records')->where('tenant_id', $tenant->value)->count())->toBe(3)
         ->and(DB::table('nvl_tenancy_adoption_mappings')->count())->toBe(3);
-    expect(fn () => DB::table('tenancy_test_records')->insert(['id' => 'd', 'name' => 'd']))->toThrow(QueryException::class);
+    expect(fn () => DB::table('tenancy_test_records')->insert(['id' => '00000000-0000-4000-8000-000000000004', 'name' => '00000000-0000-4000-8000-000000000004']))->toThrow(QueryException::class);
 });
 
 it('keeps the whole graph prepared after first adapter DDL and safely retries activation', function (): void {
@@ -237,7 +237,7 @@ it('rejects immutable input or installation mutations on resume', function (stri
     $tenant = adoptionTenant();
     adoptionAdapter();
     $coordinator = app(TenantAdoptionCoordinator::class);
-    $plan = $coordinator->prepare(['tests'], [new TenantAssignment('tests.records', 'a', $tenant)], adoptionOperation());
+    $plan = $coordinator->prepare(['tests'], [new TenantAssignment('tests.records', '00000000-0000-4000-8000-000000000001', $tenant)], adoptionOperation());
     match ($mutation) {
         'mapping' => DB::table('nvl_tenancy_adoption_mappings')->update(['record_id' => 'changed']),
         'metadata' => DB::table('nvl_tenancy_adoption_mappings')->update(['metadata' => json_encode(['destination' => ['id' => $tenant->value]])]),
@@ -251,15 +251,15 @@ it('rejects immutable input or installation mutations on resume', function (stri
 it('rejects invalid mapping input before markers or schema callbacks', function (string $invalid): void {
     $tenant = adoptionTenant();
     adoptionAdapter();
-    $assignment = new TenantAssignment('tests.records', 'a', $tenant);
+    $assignment = new TenantAssignment('tests.records', '00000000-0000-4000-8000-000000000001', $tenant);
     $mappings = match ($invalid) {
         'duplicate' => [$assignment, $assignment],
-        'conflict' => [$assignment, new TenantAssignment('tests.records', 'a', adoptionTenant('2'))],
-        'unknown_resource' => [new TenantAssignment('unknown', 'a', $tenant)],
-        'oversized_id' => [new TenantAssignment('tests.records', str_repeat('a', 192), $tenant)],
-        'unknown_metadata' => [new TenantAssignment('tests.records', 'a', $tenant, ['credential' => 'secret'])],
-        'oversized_metadata' => [new TenantAssignment('tests.records', 'a', $tenant, ['destination' => str_repeat('a', 17000)])],
-        'unknown_tenant' => [new TenantAssignment('tests.records', 'a', new TenantId('22222222-2222-4222-8222-222222222222'))],
+        'conflict' => [$assignment, new TenantAssignment('tests.records', '00000000-0000-4000-8000-000000000001', adoptionTenant('2'))],
+        'unknown_resource' => [new TenantAssignment('unknown', '00000000-0000-4000-8000-000000000001', $tenant)],
+        'oversized_id' => [new TenantAssignment('tests.records', str_repeat('00000000-0000-4000-8000-000000000001', 192), $tenant)],
+        'unknown_metadata' => [new TenantAssignment('tests.records', '00000000-0000-4000-8000-000000000001', $tenant, ['credential' => 'secret'])],
+        'oversized_metadata' => [new TenantAssignment('tests.records', '00000000-0000-4000-8000-000000000001', $tenant, ['destination' => str_repeat('00000000-0000-4000-8000-000000000001', 17000)])],
+        'unknown_tenant' => [new TenantAssignment('tests.records', '00000000-0000-4000-8000-000000000001', new TenantId('22222222-2222-4222-8222-222222222222'))],
     };
     expect(fn () => app(TenantAdoptionCoordinator::class)->prepare(['tests'], $mappings, adoptionOperation()))->toThrow(TenancyException::class)
         ->and(DB::table('nvl_tenancy_adoption_runs')->count())->toBe(0)
@@ -270,7 +270,7 @@ it('rejects invalid mapping input before markers or schema callbacks', function 
 
 it('rejects unmapped roots and invalid canonical parents before activation', function (): void {
     adoptionAdapter();
-    DB::table('tenancy_test_records')->insert(['id' => 'a', 'name' => 'a', 'parent_id' => 'missing']);
+    DB::table('tenancy_test_records')->insert(['id' => '00000000-0000-4000-8000-000000000001', 'name' => '00000000-0000-4000-8000-000000000001', 'parent_id' => '00000000-0000-4000-8000-000000000005']);
     $coordinator = app(TenantAdoptionCoordinator::class);
     $plan = $coordinator->prepare(['tests'], [], adoptionOperation());
     expect(fn () => $coordinator->backfill($plan, 2, adoptionOperation()))->toThrow(TenantBoundaryViolation::class)
@@ -281,13 +281,13 @@ it('rejects unmapped roots and invalid canonical parents before activation', fun
 it('rejects invalid parents after all mapped rows have been backfilled', function (): void {
     adoptionAdapter();
     $tenant = adoptionTenant();
-    DB::table('tenancy_test_records')->insert(['id' => 'a', 'name' => 'a', 'parent_id' => 'missing']);
+    DB::table('tenancy_test_records')->insert(['id' => '00000000-0000-4000-8000-000000000001', 'name' => '00000000-0000-4000-8000-000000000001', 'parent_id' => '00000000-0000-4000-8000-000000000005']);
     $coordinator = app(TenantAdoptionCoordinator::class);
-    $plan = $coordinator->prepare(['tests'], [new TenantAssignment('tests.records', 'a', $tenant)], adoptionOperation());
+    $plan = $coordinator->prepare(['tests'], [new TenantAssignment('tests.records', '00000000-0000-4000-8000-000000000001', $tenant)], adoptionOperation());
     $coordinator->backfill($plan, 2, adoptionOperation());
-    expect($coordinator->verify($plan)->errors)->toBe(['tests:parent_invalid:a']);
+    expect($coordinator->verify($plan)->errors)->toBe(['tests:parent_invalid:00000000-0000-4000-8000-000000000001']);
     expect(fn () => $coordinator->activate($plan, adoptionOperation()))->toThrow(TenantSchemaNotReady::class);
-    DB::table('tenancy_test_records')->where('id', 'a')->update(['parent_id' => null]);
+    DB::table('tenancy_test_records')->where('id', '00000000-0000-4000-8000-000000000001')->update(['parent_id' => null]);
     $coordinator->activate($coordinator->resume($plan->id), adoptionOperation());
     expect(DB::table('nvl_tenancy_installation_state')->value('state'))->toBe('active');
 });
@@ -296,12 +296,12 @@ it('supports bounded ordered assignment reads and nested package-validated metad
     adoptionAdapter();
     $tenant = adoptionTenant();
     $metadata = ['destination' => ['id' => '22222222-2222-4222-8222-222222222222']];
-    $plan = app(TenantAdoptionCoordinator::class)->prepare(['tests'], [new TenantAssignment('tests.records', 'b', $tenant, $metadata), new TenantAssignment('tests.records', 'a', $tenant)], adoptionOperation());
+    $plan = app(TenantAdoptionCoordinator::class)->prepare(['tests'], [new TenantAssignment('tests.records', '00000000-0000-4000-8000-000000000002', $tenant, $metadata), new TenantAssignment('tests.records', '00000000-0000-4000-8000-000000000001', $tenant)], adoptionOperation());
     $mappings = app(TenantAdoptionMappings::class);
-    expect($mappings->assignments($plan, 'tests.records', null, 1)[0]->recordId)->toBe('a')
-        ->and($mappings->assignments($plan, 'tests.records', 'a', 1)[0]->recordId)->toBe('b')
-        ->and($mappings->metadataFor($plan, 'tests.records', 'b'))->toBe($metadata)
-        ->and($mappings->tenantFor($plan, 'tests.records', 'b')->value)->toBe($tenant->value);
+    expect($mappings->assignments($plan, 'tests.records', null, 1)[0]->recordId)->toBe('00000000-0000-4000-8000-000000000001')
+        ->and($mappings->assignments($plan, 'tests.records', '00000000-0000-4000-8000-000000000001', 1)[0]->recordId)->toBe('00000000-0000-4000-8000-000000000002')
+        ->and($mappings->metadataFor($plan, 'tests.records', '00000000-0000-4000-8000-000000000002'))->toBe($metadata)
+        ->and($mappings->tenantFor($plan, 'tests.records', '00000000-0000-4000-8000-000000000002')->value)->toBe($tenant->value);
 });
 
 it('rejects invalid batch limits and stuck package progress', function (): void {
@@ -434,9 +434,9 @@ it('rejects unknown packages and connection aliases that do not share the Larave
 it('rechecks actual schema and tenant status before activating a previously verified run', function (string $change): void {
     adoptionAdapter();
     $tenant = adoptionTenant();
-    DB::table('tenancy_test_records')->insert(['id' => 'a', 'name' => 'a']);
+    DB::table('tenancy_test_records')->insert(['id' => '00000000-0000-4000-8000-000000000001', 'name' => '00000000-0000-4000-8000-000000000001']);
     $coordinator = app(TenantAdoptionCoordinator::class);
-    $plan = $coordinator->prepare(['tests'], [new TenantAssignment('tests.records', 'a', $tenant)], adoptionOperation());
+    $plan = $coordinator->prepare(['tests'], [new TenantAssignment('tests.records', '00000000-0000-4000-8000-000000000001', $tenant)], adoptionOperation());
     $coordinator->backfill($plan, 2, adoptionOperation());
     expect($coordinator->verify($plan)->passed())->toBeTrue();
     if ($change === 'schema') {
@@ -454,12 +454,12 @@ it('does not use a new adoption run to transfer an existing tenant-owned record'
     adoptionAdapter();
     $tenant = adoptionTenant();
     $other = adoptionTenant('2');
-    DB::table('tenancy_test_records')->insert(['id' => 'a', 'name' => 'a']);
+    DB::table('tenancy_test_records')->insert(['id' => '00000000-0000-4000-8000-000000000001', 'name' => '00000000-0000-4000-8000-000000000001']);
     $coordinator = app(TenantAdoptionCoordinator::class);
-    $first = $coordinator->prepare(['tests'], [new TenantAssignment('tests.records', 'a', $tenant)], adoptionOperation());
+    $first = $coordinator->prepare(['tests'], [new TenantAssignment('tests.records', '00000000-0000-4000-8000-000000000001', $tenant)], adoptionOperation());
     $coordinator->backfill($first, 2, adoptionOperation());
     $coordinator->activate($first, adoptionOperation());
-    $second = $coordinator->prepare(['tests'], [new TenantAssignment('tests.records', 'a', $other)], adoptionOperation());
+    $second = $coordinator->prepare(['tests'], [new TenantAssignment('tests.records', '00000000-0000-4000-8000-000000000001', $other)], adoptionOperation());
     expect(fn () => $coordinator->backfill($second, 2, adoptionOperation()))->toThrow(TenantBoundaryViolation::class, 'cannot transfer')
         ->and(DB::table('tenancy_test_records')->value('tenant_id'))->toBe($tenant->value)
         ->and(DB::table('nvl_tenancy_adoption_mappings')->where('run_id', $first->id)->value('tenant_id'))->toBe($tenant->value);
@@ -468,9 +468,9 @@ it('does not use a new adoption run to transfer an existing tenant-owned record'
 it('runs JSONL CLI phases using persisted immutable input', function (): void {
     adoptionAdapter();
     $tenant = adoptionTenant();
-    DB::table('tenancy_test_records')->insert(['id' => 'a', 'name' => 'a']);
+    DB::table('tenancy_test_records')->insert(['id' => '00000000-0000-4000-8000-000000000001', 'name' => '00000000-0000-4000-8000-000000000001']);
     $file = tempnam(sys_get_temp_dir(), 'nvl-f5-mapping-');
-    file_put_contents($file, json_encode(['resource' => 'tests.records', 'record_id' => 'a', 'tenant_id' => $tenant->value])."\n");
+    file_put_contents($file, json_encode(['resource' => 'tests.records', 'record_id' => '00000000-0000-4000-8000-000000000001', 'tenant_id' => $tenant->value])."\n");
     $actor = ['--actor-type' => 'operator', '--actor-id' => 'operator-1', '--purpose' => 'reviewed adoption'];
     try {
         expect(Artisan::call('nvl:tenancy:adopt', ['phase' => 'prepare', '--packages' => 'tests', '--mapping' => $file, ...$actor]))->toBe(0);
@@ -575,7 +575,7 @@ it('rejects metadata on an adapter without the optional package validator', func
     $adapter->owned = ['tests.records'];
     app()->instance(EmptyAdoptionAdapter::class, $adapter);
     app(TenantAdoptionRegistry::class)->register('tests', EmptyAdoptionAdapter::class);
-    expect(fn () => app(TenantAdoptionCoordinator::class)->prepare(['tests'], [new TenantAssignment('tests.records', 'a', adoptionTenant(), ['field' => 'value'])], adoptionOperation()))->toThrow(TenantConfigurationInvalid::class, 'does not accept metadata')
+    expect(fn () => app(TenantAdoptionCoordinator::class)->prepare(['tests'], [new TenantAssignment('tests.records', '00000000-0000-4000-8000-000000000001', adoptionTenant(), ['field' => 'value'])], adoptionOperation()))->toThrow(TenantConfigurationInvalid::class, 'does not accept metadata')
         ->and(DB::table('nvl_tenancy_installation_state')->count())->toBe(0);
 });
 
@@ -664,8 +664,8 @@ it('rejects an effective adapter implementation change when resuming identical r
 it('rejects final verification changes before publishing active markers and preserves prior history', function (string $change): void {
     $adapter = adoptionAdapter();
     $tenant = adoptionTenant();
-    DB::table('tenancy_test_records')->insert(['id' => 'a', 'name' => 'a']);
-    $mapping = [new TenantAssignment('tests.records', 'a', $tenant)];
+    DB::table('tenancy_test_records')->insert(['id' => '00000000-0000-4000-8000-000000000001', 'name' => '00000000-0000-4000-8000-000000000001']);
+    $mapping = [new TenantAssignment('tests.records', '00000000-0000-4000-8000-000000000001', $tenant)];
     $coordinator = app(TenantAdoptionCoordinator::class);
     $prior = $coordinator->prepare(['tests'], $mapping, adoptionOperation());
     $coordinator->backfill($prior, 2, adoptionOperation());
@@ -695,7 +695,7 @@ it('rejects final verification changes before publishing active markers and pres
     expect($calls)->toBe(2)
         ->and(DB::table('nvl_tenancy_installation_state')->value('state'))->toBe('prepared')
         ->and(DB::table('nvl_tenancy_adoption_runs')->where('id', $prior->id)->first())->toEqual($history)
-        ->and(DB::table('nvl_tenancy_adoption_mappings')->where('run_id', $prior->id)->value('record_id'))->toBe('a')
+        ->and(DB::table('nvl_tenancy_adoption_mappings')->where('run_id', $prior->id)->value('record_id'))->toBe('00000000-0000-4000-8000-000000000001')
         ->and(app(TenantAdoptionScope::class)->active())->toBeFalse();
 })->with(['profile', 'input', 'maintenance', 'session']);
 
@@ -716,7 +716,7 @@ it('fences metadata validator publication during ingestion and read-only resumpt
     $adapter = adoptionAdapter();
     $tenant = adoptionTenant();
     $coordinator = app(TenantAdoptionCoordinator::class);
-    $mapping = [new TenantAssignment('tests.records', 'a', $tenant)];
+    $mapping = [new TenantAssignment('tests.records', '00000000-0000-4000-8000-000000000001', $tenant)];
     $plan = $phase === 'resume' ? $coordinator->prepare(['tests'], $mapping, adoptionOperation()) : null;
     $before = DB::table('nvl_tenancy_adoption_runs')->get()->all();
     $dispatcher = app(DispatcherContract::class);
@@ -763,7 +763,7 @@ it('fences metadata validator publication during ingestion and read-only resumpt
 it('rejects read-only adoption entry inside host transactions without rolling back host state', function (string $entry): void {
     $adapter = adoptionAdapter();
     $coordinator = app(TenantAdoptionCoordinator::class);
-    $plan = $coordinator->prepare(['tests'], [new TenantAssignment('tests.records', 'a', adoptionTenant())], adoptionOperation());
+    $plan = $coordinator->prepare(['tests'], [new TenantAssignment('tests.records', '00000000-0000-4000-8000-000000000001', adoptionTenant())], adoptionOperation());
     $calls = 0;
     $adapter->onValidate = static function () use (&$calls): void {
         $calls++;
@@ -787,7 +787,7 @@ it('invalidates primed probes when fenced ingestion commit callbacks fail after 
     $adapter = adoptionAdapter();
     $coordinator = app(TenantAdoptionCoordinator::class);
     $tenant = adoptionTenant();
-    $mapping = [new TenantAssignment('tests.records', 'a', $tenant)];
+    $mapping = [new TenantAssignment('tests.records', '00000000-0000-4000-8000-000000000001', $tenant)];
     if ($initial === 'active') {
         $first = $coordinator->prepare(['tests'], $mapping, adoptionOperation());
         $coordinator->backfill($first, 2, adoptionOperation());
@@ -834,7 +834,7 @@ it('unwinds only leaked metadata transaction levels before the coordinator rolls
         DB::beginTransaction();
         throw new RuntimeException('original metadata failure');
     };
-    expect(fn () => app(TenantAdoptionCoordinator::class)->prepare(['tests'], [new TenantAssignment('tests.records', 'a', adoptionTenant())], adoptionOperation()))->toThrow(RuntimeException::class, 'original metadata failure')
+    expect(fn () => app(TenantAdoptionCoordinator::class)->prepare(['tests'], [new TenantAssignment('tests.records', '00000000-0000-4000-8000-000000000001', adoptionTenant())], adoptionOperation()))->toThrow(RuntimeException::class, 'original metadata failure')
         ->and($levels)->toBe([1, 0])
         ->and(DB::table('nvl_tenancy_adoption_runs')->count())->toBe(0)
         ->and(DB::table('nvl_tenancy_operations')->count())->toBe(1)
