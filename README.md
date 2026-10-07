@@ -44,7 +44,7 @@ See the [installation and publishing guide](https://github.com/nvl-laravel-suite
 
 `nvl/tenancy` provides the deployment configuration, immutable context values,
 adapter contracts, and fail-closed error vocabulary used by tenant-aware NVL
-packages on Laravel 13 and PHP 8.4.
+packages on Laravel 12–13 and PHP 8.4.
 
 The package is inert by default. Its provider registers a scoped disabled
 context, the default migration switch loads no schema, no global middleware is
