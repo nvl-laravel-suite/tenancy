@@ -3,13 +3,15 @@
 
 All notable changes to `nvl/tenancy` are documented here.
 
-## [5.0.0] — release candidate (unpublished)
+## [Unreleased]
+
+## [5.0.0] - 2026-10-08
 
 ### Changed
 
 - Both platform workflows gain focused contracts. Neutral Core contracts, effective host adapter identity, compatibility aliases, security, and inactive-by-default behavior are preserved. Document contract substitution and truthful host fixtures in Testing your app.
 - Classify the supported consumer PHP surface with explicit source annotations and restrict package model handles to declared identity and in-memory read fields; preserve existing workflow behavior and concrete signatures.
-- Prepare lockstep major 5 with required and development NVL peer floors of `^5.0`. This candidate has not been tagged or published.
+- Adopt lockstep major 5 with required and development NVL peer floors of `^5.0`.
 - Keep disabled runtime hooks, host queue handlers and static callbacks untouched.
 - Validate queue envelope metadata before deserialization; preserve native failed-job storage with safe raw retry.
 - Review [UPGRADING.md](UPGRADING.md) before adopting the new names and infrastructure boundaries.
